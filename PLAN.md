@@ -108,9 +108,10 @@ Auth
 
 ```
 green-angle/
-  PLAN.md
+  PLAN.md, CLAUDE.md
   docker-compose.yml          # api, postgres, minio
-  apps/api/  (или корень)
+  frontend/                   # Next.js — после получения макета
+  backend/
     prisma/schema.prisma, migrations/, seed.ts
     src/
       main.ts, app.module.ts
@@ -127,8 +128,9 @@ green-angle/
 
 Каждый этап завершается рабочим состоянием, тестами и обновлённым Swagger.
 
-1. **Каркас** — репозиторий, NestJS, Docker Compose (postgres+minio), конфиг через env с валидацией, ESLint/Prettier, CI, healthcheck.
+1. ✅ **Каркас** — репозиторий, NestJS, Docker Compose (postgres+minio), конфиг через env с валидацией, ESLint/Prettier, CI, healthcheck.
    _Готово, когда:_ `docker compose up` поднимает API, `/health` отвечает.
+   _Итог:_ бэкенд в `backend/` (NestJS 11 + Fastify, pnpm), env валидируется zod, префикс `/api/v1`, `GET /api/v1/health`, Swagger на `/api/docs`, e2e-тест health, CI в `.github/workflows`. Проверено: `docker compose up` → health отвечает `{"status":"ok"}`. Отличия от плана: MinIO — образ `ghcr.io/coollabsio/minio` (официальные образы недоступны); бакет `green-angle` создаётся на этапе 4 (storage), отдельного init-контейнера нет.
 2. **Схема БД и seed** — Prisma-схема из §3, миграция, seed: 1 админ, подборщик «АвтоПодбор Плюс», физлицо «Смирнов А. В.», 3 машины (Geely Monjaro шаг 9, Chery Tiggo 8 Pro шаг 2, Zeekr 001 шаг 13), 2 заявки.
 3. **Auth и RBAC** — логин, refresh с ротацией, guard ролей, scope по `clientId`, `/me`. Тесты: брокер не видит чужое, физлицо не видит брокерское, админ видит всё.
 4. **Хранилище** — S3-модуль, presign PUT/GET, проверка mime/размера, модель `Attachment`.
