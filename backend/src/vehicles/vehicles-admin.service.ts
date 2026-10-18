@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/auth-user.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import { AttachmentsService } from '../storage/attachments.service.js';
 import { AddStepAttachmentDto } from './dto/add-step-attachment.dto.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
@@ -18,6 +19,7 @@ import {
   DECLARATION_STEP,
   initialSteps,
   STEPS,
+  stepTitle,
   TOTAL_STEPS,
 } from './steps.catalog.js';
 import { VehiclesService } from './vehicles.service.js';
@@ -31,6 +33,7 @@ export class VehiclesAdminService {
     private readonly config: ConfigService,
     private readonly attachments: AttachmentsService,
     private readonly vehicles: VehiclesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Ручное создание машины в супер ЛК: VIN обязателен, клиент — существующий или новый. */
@@ -70,8 +73,17 @@ export class VehiclesAdminService {
               },
             },
           },
-          select: { id: true },
+          select: { id: true, clientId: true },
         });
+      });
+      this.realtime.vehicleStatusChanged({
+        vehicleId: created.id,
+        clientId: created.clientId,
+        fromStep: null,
+        toStep: dto.startStep,
+        toStepTitle: stepTitle(dto.startStep),
+        declarationNumber: null,
+        at: new Date().toISOString(),
       });
       return this.vehicles.getCard(user, created.id);
     } catch (err) {
@@ -117,10 +129,10 @@ export class VehiclesAdminService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const change = await this.prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.findUnique({
         where: { id },
-        select: { currentStep: true },
+        select: { currentStep: true, clientId: true },
       });
       if (!vehicle) throw new NotFoundException('Vehicle not found');
       const from = vehicle.currentStep;
@@ -176,8 +188,18 @@ export class VehiclesAdminService {
           changedById: user.id,
         },
       });
+      return { clientId: vehicle.clientId, from };
     });
 
+    this.realtime.vehicleStatusChanged({
+      vehicleId: id,
+      clientId: change.clientId,
+      fromStep: change.from,
+      toStep: to,
+      toStepTitle: stepTitle(to),
+      declarationNumber: declaration ?? null,
+      at: new Date().toISOString(),
+    });
     return this.vehicles.getCard(user, id);
   }
 

@@ -9,6 +9,7 @@ import { UploadsModule } from './uploads/uploads.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { RequestsModule } from './requests/requests.module.js';
 import { MessagesModule } from './messages/messages.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MessagesModule } from './messages/messages.module.js';
     VehiclesModule,
     RequestsModule,
     MessagesModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

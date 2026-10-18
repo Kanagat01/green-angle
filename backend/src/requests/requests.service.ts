@@ -9,7 +9,8 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { RequestStatus } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { initialSteps } from '../vehicles/steps.catalog.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
+import { initialSteps, stepTitle } from '../vehicles/steps.catalog.js';
 import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
 import {
@@ -37,6 +38,7 @@ export class RequestsService {
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
     private readonly vehicles: VehiclesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Заявка на подбор от имени своего клиента. Статус всегда NEW. */
@@ -55,6 +57,14 @@ export class RequestsService {
         comment: dto.comment,
       },
       include,
+    });
+    this.realtime.requestUpdated({
+      requestId: created.id,
+      clientId,
+      status: created.status,
+      vehicleId: null,
+      reason: 'CREATED',
+      at: created.createdAt.toISOString(),
     });
     return toView(created, 0);
   }
@@ -107,14 +117,20 @@ export class RequestsService {
    * к которой машина уже привязана, повторный вызов возвращает ту же машину и ничего не создаёт.
    */
   async approve(admin: AuthUser, id: string): Promise<ApproveRequestResultDto> {
-    const vehicleId = await this.prisma.$transaction(async (tx) => {
+    const approval = await this.prisma.$transaction(async (tx) => {
       // Блокировка строки: сериализует параллельные approve и запись сообщений (см. MessagesService)
       const [locked] = await tx.$queryRaw<
         { vehicleId: string | null; clientId: string; title: string }[]
       >`SELECT "vehicleId", "clientId", "title" FROM "Request"
           WHERE "id" = ${id}::uuid FOR UPDATE`;
       if (!locked) throw new NotFoundException('Request not found');
-      if (locked.vehicleId) return locked.vehicleId;
+      if (locked.vehicleId) {
+        return {
+          vehicleId: locked.vehicleId,
+          clientId: locked.clientId,
+          created: false,
+        };
+      }
 
       const vehicle = await tx.vehicle.create({
         data: {
@@ -133,12 +149,38 @@ export class RequestsService {
         where: { id },
         data: { status: RequestStatus.APPROVED, vehicleId: vehicle.id },
       });
-      return vehicle.id;
+      return {
+        vehicleId: vehicle.id,
+        clientId: locked.clientId,
+        created: true,
+      };
     });
+
+    // События только о реальном изменении: повторное одобрение ничего не рассылает
+    if (approval.created) {
+      const at = new Date().toISOString();
+      this.realtime.requestUpdated({
+        requestId: id,
+        clientId: approval.clientId,
+        status: RequestStatus.APPROVED,
+        vehicleId: approval.vehicleId,
+        reason: 'APPROVED',
+        at,
+      });
+      this.realtime.vehicleStatusChanged({
+        vehicleId: approval.vehicleId,
+        clientId: approval.clientId,
+        fromStep: null,
+        toStep: 1,
+        toStepTitle: stepTitle(1),
+        declarationNumber: null,
+        at,
+      });
+    }
 
     return {
       request: await this.get(admin, id),
-      vehicle: await this.vehicles.getCard(admin, vehicleId),
+      vehicle: await this.vehicles.getCard(admin, approval.vehicleId),
     };
   }
 }

@@ -14,6 +14,8 @@ import {
   Role,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { SharedMessage } from '../realtime/realtime.events.js';
+import { RealtimeService } from '../realtime/realtime.service.js';
 import {
   AttachmentsService,
   UploadRef,
@@ -43,6 +45,7 @@ export class MessagesService {
     private readonly prisma: PrismaService,
     private readonly attachments: AttachmentsService,
     private readonly storage: StorageService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Лента сообщений: страница до курсора `before` (или последние), от старых к новым. */
@@ -124,19 +127,36 @@ export class MessagesService {
           messageId: message.id,
         });
 
+        let status: RequestStatus = locked.status;
         if (user.role === Role.ADMIN && locked.status === RequestStatus.NEW) {
+          status = RequestStatus.IN_DIALOG;
           await tx.request.update({
             where: { id: requestId },
-            data: { status: RequestStatus.IN_DIALOG },
+            data: { status },
           });
         }
 
-        return tx.message.findUniqueOrThrow({
-          where: { id: message.id },
-          include,
-        });
+        return {
+          status,
+          message: await tx.message.findUniqueOrThrow({
+            where: { id: message.id },
+            include,
+          }),
+        };
       });
-      return this.toView(created, user);
+
+      // События — только после коммита: подписчики не должны увидеть то, чего потом нет в БД
+      const shared = await this.toShared(created.message);
+      this.realtime.messageCreated({ message: shared });
+      this.realtime.requestUpdated({
+        requestId,
+        clientId: request.clientId,
+        status: created.status,
+        vehicleId: null,
+        reason: 'MESSAGE',
+        at: new Date().toISOString(),
+      });
+      return { ...shared, isMine: true };
     } catch (err) {
       if ((err as { code?: string } | null)?.code === 'P2002') {
         throw new ConflictException('Attachment already registered');
@@ -260,7 +280,7 @@ export class MessagesService {
   private async requireAccessibleRequest(user: AuthUser, requestId: string) {
     const request = await this.prisma.request.findFirst({
       where: { id: requestId, ...clientScope(user) },
-      select: { id: true, status: true },
+      select: { id: true, status: true, clientId: true },
     });
     if (!request) throw new NotFoundException('Request not found');
     return request;
@@ -270,6 +290,11 @@ export class MessagesService {
     m: MessageWithRelations,
     user: AuthUser,
   ): Promise<MessageViewDto> {
+    return { ...(await this.toShared(m)), isMine: m.authorId === user.id };
+  }
+
+  /** Представление, одинаковое для всех получателей (без isMine) — для realtime-рассылки. */
+  private async toShared(m: MessageWithRelations): Promise<SharedMessage> {
     return {
       id: m.id,
       requestId: m.requestId,
@@ -281,7 +306,6 @@ export class MessagesService {
         m.attachments.map((a) => this.attachments.toView(a)),
       ),
       author: m.author,
-      isMine: m.authorId === user.id,
       createdAt: m.createdAt,
     };
   }

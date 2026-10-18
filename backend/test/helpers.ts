@@ -12,8 +12,12 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 
 export const PASSWORD = 'test-password-123';
 
+/**
+ * Поднимает приложение для тестов. `listen: true` открывает реальный порт (нужен для
+ * WebSocket-клиентов); адрес потом доступен через `await app.getUrl()`.
+ */
 export async function createApp(
-  extra: { controllers?: any[] } = {},
+  extra: { controllers?: any[]; listen?: boolean } = {},
 ): Promise<NestFastifyApplication> {
   const moduleRef: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
@@ -25,6 +29,7 @@ export async function createApp(
   configureApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
+  if (extra.listen) await app.listen(0, '127.0.0.1');
   return app;
 }
 

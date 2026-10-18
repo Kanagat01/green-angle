@@ -15,6 +15,8 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    if (context.getType() !== 'http') return true;
+
     const roles = this.reflector.getAllAndOverride<Role[] | undefined>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
