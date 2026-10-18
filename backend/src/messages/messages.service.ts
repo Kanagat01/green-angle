@@ -8,12 +8,17 @@ import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import {
+  AttachmentKind,
   MessageType,
   RequestStatus,
   Role,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AttachmentsService } from '../storage/attachments.service.js';
+import {
+  AttachmentsService,
+  UploadRef,
+} from '../storage/attachments.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { CreateMessageDto } from './dto/create-message.dto.js';
 import {
   MessageListDto,
@@ -37,6 +42,7 @@ export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly attachments: AttachmentsService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Лента сообщений: страница до курсора `before` (или последние), от старых к новым. */
@@ -89,17 +95,10 @@ export class MessagesService {
       throw new ConflictException(APPROVED_CONFLICT);
     }
 
-    const text = dto.text?.trim() || null;
-    const links = dto.links ?? [];
-    const refs = dto.attachments ?? [];
-    if (!text && links.length === 0 && refs.length === 0) {
-      throw new BadRequestException(
-        'Message must contain text, links or attachments',
-      );
-    }
+    const content = this.buildContent(dto);
 
     // Проверка файлов в S3 — до транзакции: сеть не должна держать блокировку
-    const verified = await this.attachments.verify(user, refs);
+    const verified = await this.attachments.verify(user, content.refs);
 
     try {
       const created = await this.prisma.$transaction(async (tx) => {
@@ -115,9 +114,10 @@ export class MessagesService {
           data: {
             requestId,
             authorId: user.id,
-            type: MessageType.TEXT,
-            text,
-            links,
+            type: content.type,
+            text: content.text,
+            links: content.links,
+            durationSec: content.durationSec,
           },
         });
         await this.attachments.createVerified(tx, user, verified, {
@@ -143,6 +143,28 @@ export class MessagesService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Presigned PUT для голосового сообщения: тот же презайн, что и у /uploads/presign для AUDIO,
+   * но с проверкой доступа к заявке. В одобренной заявке голосовое отправить нельзя.
+   */
+  async createVoiceUploadUrl(
+    user: AuthUser,
+    requestId: string,
+    mime: string,
+    size: number,
+  ) {
+    const request = await this.requireAccessibleRequest(user, requestId);
+    if (request.status === RequestStatus.APPROVED) {
+      throw new ConflictException(APPROVED_CONFLICT);
+    }
+    return this.storage.createUploadTicket(
+      user.id,
+      AttachmentKind.AUDIO,
+      mime,
+      size,
+    );
   }
 
   /** Отмечает все чужие сообщения заявки прочитанными текущим пользователем. */
@@ -194,6 +216,44 @@ export class MessagesService {
       authorId: { not: user.id },
       reads: { none: { userId: user.id } },
     };
+  }
+
+  /**
+   * Приводит тело запроса к содержимому сообщения. TEXT — текст/ссылки/фото/файлы;
+   * VOICE — только аудио (ключ + длительность), остальные поля недопустимы.
+   */
+  private buildContent(dto: CreateMessageDto): {
+    type: MessageType;
+    text: string | null;
+    links: string[];
+    durationSec: number | null;
+    refs: UploadRef[];
+  } {
+    if (dto.type === MessageType.VOICE) {
+      if (dto.text?.trim() || dto.links?.length || dto.attachments?.length) {
+        throw new BadRequestException(
+          'A voice message cannot contain text, links or attachments',
+        );
+      }
+      return {
+        type: MessageType.VOICE,
+        text: null,
+        links: [],
+        durationSec: dto.durationSec!,
+        refs: [{ key: dto.attachmentKey!, kind: AttachmentKind.AUDIO }],
+      };
+    }
+
+    // Для TEXT поля voice-сообщения (attachmentKey, durationSec) игнорируются
+    const text = dto.text?.trim() || null;
+    const links = dto.links ?? [];
+    const refs = dto.attachments ?? [];
+    if (!text && links.length === 0 && refs.length === 0) {
+      throw new BadRequestException(
+        'Message must contain text, links or attachments',
+      );
+    }
+    return { type: MessageType.TEXT, text, links, durationSec: null, refs };
   }
 
   /** Заявка в рамках доступа пользователя; чужая — 404, не 403. */

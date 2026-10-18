@@ -15,10 +15,14 @@ import {
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
+  ApiPayloadTooLargeResponse,
   ApiTags,
+  ApiUnsupportedMediaTypeResponse,
 } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { PresignedUploadDto } from '../uploads/dto/presigned-upload.dto.js';
+import { VoiceUploadUrlDto } from './dto/voice-upload-url.dto.js';
 import { CreateMessageDto } from './dto/create-message.dto.js';
 import { ListMessagesQueryDto } from './dto/list-messages-query.dto.js';
 import {
@@ -59,6 +63,28 @@ export class MessagesController {
     @Body() dto: CreateMessageDto,
   ) {
     return this.messages.create(user, id, dto);
+  }
+
+  /**
+   * Шаг 1 отправки голосового: получить presigned PUT для аудиофайла. Дальше клиент грузит файл
+   * напрямую в S3 и создаёт сообщение `POST messages {type:"VOICE", attachmentKey, durationSec}`.
+   */
+  @Post('voice-upload-url')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: PresignedUploadDto })
+  @ApiConflictResponse({
+    description: 'Заявка одобрена — диалог только для чтения',
+  })
+  @ApiUnsupportedMediaTypeResponse({ description: 'Недопустимый аудиоформат' })
+  @ApiPayloadTooLargeResponse({
+    description: 'Размер вне допустимых пределов (до 10 МБ)',
+  })
+  voiceUploadUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VoiceUploadUrlDto,
+  ) {
+    return this.messages.createVoiceUploadUrl(user, id, dto.mime, dto.size);
   }
 
   @Post('read')

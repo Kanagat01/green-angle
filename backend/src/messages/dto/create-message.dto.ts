@@ -5,14 +5,21 @@ import {
   IsArray,
   IsEnum,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
+  Max,
   MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { AttachmentKind, MessageType } from '../../generated/prisma/client.js';
 
+/** Голосовое — до 5 минут (PLAN.md §5); размер ограничен правилами AUDIO (10 МБ) */
+export const MAX_VOICE_SECONDS = 5 * 60;
 export const MAX_TEXT_LENGTH = 5000;
 export const MAX_LINKS = 10;
 export const MAX_MESSAGE_ATTACHMENTS = 10;
@@ -39,11 +46,31 @@ export class MessageAttachmentDto {
 }
 
 export class CreateMessageDto {
-  @ApiPropertyOptional({ enum: [MessageType.TEXT], default: MessageType.TEXT })
+  @ApiPropertyOptional({ enum: MessageType, default: MessageType.TEXT })
   @IsOptional()
   @IsEnum(MessageType)
-  @IsIn([MessageType.TEXT])
   type: MessageType = MessageType.TEXT;
+
+  @ApiPropertyOptional({
+    description:
+      'Только для VOICE (обязательно): ключ аудиообъекта из POST /requests/:id/voice-upload-url после загрузки',
+  })
+  @ValidateIf((o: CreateMessageDto) => o.type === MessageType.VOICE)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  attachmentKey?: string;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: MAX_VOICE_SECONDS,
+    description: 'Только для VOICE (обязательно): длительность записи, секунды',
+  })
+  @ValidateIf((o: CreateMessageDto) => o.type === MessageType.VOICE)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_VOICE_SECONDS)
+  durationSec?: number;
 
   @ApiPropertyOptional({ maxLength: MAX_TEXT_LENGTH })
   @IsOptional()

@@ -180,7 +180,10 @@ describe('Request dialog (e2e)', () => {
       ],
       ['non-array links', { links: 'https://e.com' }],
       ['text too long', { text: 'x'.repeat(5001) }],
-      ['VOICE type (not supported yet)', { type: 'VOICE', text: 'x' }],
+      [
+        'VOICE without attachmentKey and durationSec',
+        { type: 'VOICE', text: 'x' },
+      ],
       ['unknown type', { type: 'EMAIL', text: 'x' }],
       [
         'AUDIO attachment in a text message',
