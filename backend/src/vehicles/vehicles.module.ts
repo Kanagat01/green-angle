@@ -9,5 +9,6 @@ import { VehiclesService } from './vehicles.service.js';
   imports: [StorageModule],
   controllers: [VehiclesController, AdminVehiclesController],
   providers: [VehiclesService, VehiclesAdminService],
+  exports: [VehiclesService],
 })
 export class VehiclesModule {}

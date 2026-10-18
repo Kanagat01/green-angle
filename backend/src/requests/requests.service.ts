@@ -5,11 +5,18 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
-import type { Prisma, RequestStatus } from '../generated/prisma/client.js';
+import type { Prisma } from '../generated/prisma/client.js';
+import { RequestStatus } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { initialSteps } from '../vehicles/steps.catalog.js';
+import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
-import { RequestListDto, RequestViewDto } from './dto/request-views.dto.js';
+import {
+  ApproveRequestResultDto,
+  RequestListDto,
+  RequestViewDto,
+} from './dto/request-views.dto.js';
 
 export interface RequestFilters {
   status?: RequestStatus;
@@ -29,6 +36,7 @@ export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
+    private readonly vehicles: VehiclesService,
   ) {}
 
   /** Заявка на подбор от имени своего клиента. Статус всегда NEW. */
@@ -91,6 +99,47 @@ export class RequestsService {
     if (!request) throw new NotFoundException('Request not found');
     const unread = await this.messages.unreadByRequest(user, [id]);
     return toView(request, unread.get(id) ?? 0);
+  }
+
+  /**
+   * Одобрение заявки менеджером: заявка → APPROVED и создаётся машина (шаг 1, без VIN, клиент
+   * заявки) со ссылкой Request.vehicleId — всё в одной транзакции. Идемпотентно: у заявки,
+   * к которой машина уже привязана, повторный вызов возвращает ту же машину и ничего не создаёт.
+   */
+  async approve(admin: AuthUser, id: string): Promise<ApproveRequestResultDto> {
+    const vehicleId = await this.prisma.$transaction(async (tx) => {
+      // Блокировка строки: сериализует параллельные approve и запись сообщений (см. MessagesService)
+      const [locked] = await tx.$queryRaw<
+        { vehicleId: string | null; clientId: string; title: string }[]
+      >`SELECT "vehicleId", "clientId", "title" FROM "Request"
+          WHERE "id" = ${id}::uuid FOR UPDATE`;
+      if (!locked) throw new NotFoundException('Request not found');
+      if (locked.vehicleId) return locked.vehicleId;
+
+      const vehicle = await tx.vehicle.create({
+        data: {
+          clientId: locked.clientId,
+          title: locked.title,
+          vin: null,
+          currentStep: 1,
+          steps: { create: initialSteps(1, new Date()) },
+          statusLogs: {
+            create: { fromStep: null, toStep: 1, changedById: admin.id },
+          },
+        },
+        select: { id: true },
+      });
+      await tx.request.update({
+        where: { id },
+        data: { status: RequestStatus.APPROVED, vehicleId: vehicle.id },
+      });
+      return vehicle.id;
+    });
+
+    return {
+      request: await this.get(admin, id),
+      vehicle: await this.vehicles.getCard(admin, vehicleId),
+    };
   }
 }
 

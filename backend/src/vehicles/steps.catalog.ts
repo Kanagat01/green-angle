@@ -53,6 +53,17 @@ export const STEPS: readonly StepDefinition[] = [
   },
 ];
 
+/** Шаги новой машины: всё до стартового — завершено (для 13 — и он сам). */
+export function initialSteps(currentStep: number, now: Date) {
+  return Array.from({ length: TOTAL_STEPS }, (_, i) => {
+    const step = i + 1;
+    const completed =
+      step < currentStep ||
+      (step === TOTAL_STEPS && currentStep === TOTAL_STEPS);
+    return { step, completedAt: completed ? now : null };
+  });
+}
+
 export function stepTitle(step: number): string {
   return STEPS[step - 1].title;
 }

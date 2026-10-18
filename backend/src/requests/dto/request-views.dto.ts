@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ClientType, RequestStatus } from '../../generated/prisma/client.js';
+import { VehicleCardDto } from '../../vehicles/dto/vehicle-views.dto.js';
 
 export class RequestClientDto {
   @ApiProperty()
@@ -56,4 +57,18 @@ export class RequestListDto {
 
   @ApiProperty({ description: 'Всего записей по фильтру' })
   total: number;
+}
+
+export class ApproveRequestResultDto {
+  @ApiProperty({
+    type: RequestViewDto,
+    description: 'Заявка в статусе APPROVED со ссылкой на машину',
+  })
+  request: RequestViewDto;
+
+  @ApiProperty({
+    type: VehicleCardDto,
+    description: 'Созданная машина: шаг 1, VIN пустой, клиент заявки',
+  })
+  vehicle: VehicleCardDto;
 }

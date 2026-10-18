@@ -14,7 +14,12 @@ import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { CreateVehicleDto } from './dto/create-vehicle.dto.js';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto.js';
 import { StepAttachmentDto, VehicleCardDto } from './dto/vehicle-views.dto.js';
-import { DECLARATION_STEP, STEPS, TOTAL_STEPS } from './steps.catalog.js';
+import {
+  DECLARATION_STEP,
+  initialSteps,
+  STEPS,
+  TOTAL_STEPS,
+} from './steps.catalog.js';
 import { VehiclesService } from './vehicles.service.js';
 
 type Tx = Prisma.TransactionClient;
@@ -201,17 +206,6 @@ export class VehiclesAdminService {
     });
     return this.attachments.toView(attachment);
   }
-}
-
-/** Шаги новой машины: всё до стартового — завершено (для 13 — и он сам). */
-function initialSteps(currentStep: number, now: Date) {
-  return Array.from({ length: TOTAL_STEPS }, (_, i) => {
-    const step = i + 1;
-    const completed =
-      step < currentStep ||
-      (step === TOTAL_STEPS && currentStep === TOTAL_STEPS);
-    return { step, completedAt: completed ? now : null };
-  });
 }
 
 /** Строгий режим (STRICT_ATTACHMENTS): пройденные шаги должны иметь ожидаемое вложение. */
