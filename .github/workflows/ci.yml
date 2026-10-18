@@ -6,13 +6,36 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: green
+          POSTGRES_PASSWORD: green
+          POSTGRES_DB: green_angle
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U green -d green_angle"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://green:green@localhost:5432/green_angle?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-1234567890
+      JWT_REFRESH_SECRET: ci-refresh-secret-1234567890
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: green-angle
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio12345
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: 11 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: backend/pnpm-lock.yaml }
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: backend/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
+      - run: pnpm prisma migrate deploy
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm test

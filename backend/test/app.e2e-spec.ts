@@ -3,8 +3,8 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { AppModule } from './../src/app.module';
-import { configureApp } from './../src/app.setup';
+import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/app.setup.js';
 
 describe('Health (e2e)', () => {
   let app: NestFastifyApplication;
