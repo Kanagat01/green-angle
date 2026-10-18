@@ -4,7 +4,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { hash } from '@node-rs/argon2';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { ClientType, Role } from '../src/generated/prisma/client.js';
@@ -43,7 +43,14 @@ export interface Fixtures {
     clientId: string;
     vehicleId: string;
   };
+  /** Уникальный суффикс данных этого прогона; клиенты с ним в названии удаляются в cleanup */
+  tag: string;
   cleanup: () => Promise<void>;
+}
+
+/** Уникальный валидный VIN (17 символов из разрешённого алфавита). */
+export function randomVin(): string {
+  return `T${randomBytes(8).toString('hex').toUpperCase()}`;
 }
 
 /**
@@ -71,7 +78,13 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
       },
     });
     const vehicle = await prisma.vehicle.create({
-      data: { clientId: c.id, title: `Car of ${name} ${tag}` },
+      data: {
+        clientId: c.id,
+        title: `Car of ${name} ${tag}`,
+        steps: {
+          create: Array.from({ length: 13 }, (_, i) => ({ step: i + 1 })),
+        },
+      },
     });
     return {
       id: user.id,
@@ -85,11 +98,6 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
   const otherBroker = await client(ClientType.COMPANY, Role.BROKER, 'Broker B');
   const individual = await client(ClientType.PERSON, Role.INDIVIDUAL, 'Person');
 
-  const clientIds = [
-    broker.clientId,
-    otherBroker.clientId,
-    individual.clientId,
-  ];
   const userIds = [admin.id, broker.id, otherBroker.id, individual.id];
 
   return {
@@ -97,12 +105,44 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
     broker,
     otherBroker,
     individual,
+    tag,
     cleanup: async () => {
-      await prisma.vehicle.deleteMany({
-        where: { clientId: { in: clientIds } },
+      // Все клиенты прогона, включая созданные через API (в названии есть tag)
+      const clients = await prisma.client.findMany({
+        where: { name: { contains: tag } },
+        select: { id: true },
       });
-      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-      await prisma.client.deleteMany({ where: { id: { in: clientIds } } });
+      const clientIds = clients.map((c) => c.id);
+      const vehicles = await prisma.vehicle.findMany({
+        where: { clientId: { in: clientIds } },
+        select: { id: true },
+      });
+      const vehicleIds = vehicles.map((v) => v.id);
+
+      await prisma.$transaction(async (tx) => {
+        // Журнал append-only (триггер). Для очистки тестовых данных отключаем триггер
+        // в рамках этой транзакции: DDL транзакционный, после коммита триггер снова активен.
+        await tx.$executeRawUnsafe(
+          'ALTER TABLE "VehicleStatusLog" DISABLE TRIGGER "VehicleStatusLog_append_only"',
+        );
+        await tx.vehicleStatusLog.deleteMany({
+          where: {
+            OR: [
+              { vehicleId: { in: vehicleIds } },
+              { changedById: { in: userIds } },
+            ],
+          },
+        });
+        await tx.$executeRawUnsafe(
+          'ALTER TABLE "VehicleStatusLog" ENABLE TRIGGER "VehicleStatusLog_append_only"',
+        );
+        await tx.attachment.deleteMany({
+          where: { uploadedById: { in: userIds } },
+        });
+        await tx.vehicle.deleteMany({ where: { id: { in: vehicleIds } } });
+        await tx.user.deleteMany({ where: { id: { in: userIds } } });
+        await tx.client.deleteMany({ where: { id: { in: clientIds } } });
+      });
     },
   };
 }
