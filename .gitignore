@@ -8,6 +8,9 @@ out/
 coverage/
 *.tsbuildinfo
 
+# prisma generated client
+generated/
+
 # env / secrets
 .env
 .env.*

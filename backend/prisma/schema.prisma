@@ -1,0 +1,200 @@
+// Domain model: see PLAN.md §3
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  BROKER
+  INDIVIDUAL
+}
+
+enum ClientType {
+  COMPANY
+  PERSON
+}
+
+enum AttachmentKind {
+  PHOTO
+  VIDEO
+  FILE
+  AUDIO
+}
+
+enum RequestStatus {
+  NEW
+  IN_DIALOG
+  APPROVED
+}
+
+enum MessageType {
+  TEXT
+  VOICE
+}
+
+model Client {
+  id        String     @id @default(uuid()) @db.Uuid
+  type      ClientType
+  name      String
+  createdAt DateTime   @default(now())
+
+  users    User[]
+  vehicles Vehicle[]
+  requests Request[]
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  role         Role
+  // null только у ADMIN
+  clientId     String?  @db.Uuid
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  client Client? @relation(fields: [clientId], references: [id])
+
+  uploadedAttachments Attachment[]
+  authoredMessages    Message[]
+  messageReads        MessageRead[]
+  createdRequests     Request[]
+  statusChanges       VehicleStatusLog[]
+
+  @@index([clientId])
+}
+
+model Vehicle {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @db.Uuid
+  // «Geely Monjaro, 2024»
+  title       String
+  // nullable: машина из одобренной заявки создаётся без VIN. Postgres допускает много NULL в unique-индексе
+  vin         String?  @unique
+  // 1..13, диапазон проверяется CHECK-ограничением в миграции
+  currentStep Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  client     Client             @relation(fields: [clientId], references: [id])
+  steps      VehicleStep[]
+  statusLogs VehicleStatusLog[]
+  request    Request?
+
+  @@index([clientId])
+  @@index([currentStep])
+}
+
+// Состояние шагов машины (завершён / нет)
+model VehicleStep {
+  id                String    @id @default(uuid()) @db.Uuid
+  vehicleId         String    @db.Uuid
+  step              Int
+  completedAt       DateTime?
+  declarationNumber String?
+
+  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+
+  @@unique([vehicleId, step])
+}
+
+// Журнал смен статуса: append-only, наружу не отдаётся (PLAN.md §4)
+model VehicleStatusLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  vehicleId         String   @db.Uuid
+  // null при создании машины
+  fromStep          Int?
+  toStep            Int
+  declarationNumber String?
+  changedById       String   @db.Uuid
+  changedAt         DateTime @default(now())
+
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([vehicleId, changedAt])
+  @@index([changedById])
+}
+
+model Attachment {
+  id            String         @id @default(uuid()) @db.Uuid
+  // ключ объекта в S3
+  key           String         @unique
+  mime          String
+  size          Int
+  kind          AttachmentKind
+  uploadedById  String         @db.Uuid
+  vehicleStepId String?        @db.Uuid
+  messageId     String?        @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  uploadedBy  User         @relation(fields: [uploadedById], references: [id])
+  vehicleStep VehicleStep? @relation(fields: [vehicleStepId], references: [id], onDelete: Cascade)
+  message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleStepId])
+  @@index([messageId])
+  @@index([uploadedById])
+}
+
+model Request {
+  id          String        @id @default(uuid()) @db.Uuid
+  clientId    String        @db.Uuid
+  createdById String        @db.Uuid
+  // «Chery Tiggo 8 Pro»
+  title       String
+  yearFrom    Int?
+  budget      Decimal?      @db.Decimal(14, 2)
+  comment     String?
+  status      RequestStatus @default(NEW)
+  // проставляется при одобрении
+  vehicleId   String?       @unique @db.Uuid
+  createdAt   DateTime      @default(now())
+
+  client    Client    @relation(fields: [clientId], references: [id])
+  createdBy User      @relation(fields: [createdById], references: [id])
+  vehicle   Vehicle?  @relation(fields: [vehicleId], references: [id])
+  messages  Message[]
+
+  @@index([clientId, status])
+  @@index([status, createdAt])
+}
+
+model Message {
+  id          String      @id @default(uuid()) @db.Uuid
+  requestId   String      @db.Uuid
+  authorId    String      @db.Uuid
+  type        MessageType @default(TEXT)
+  text        String?
+  // только для VOICE
+  durationSec Int?
+  // ссылки на объявления
+  links       String[]    @default([])
+  createdAt   DateTime    @default(now())
+
+  request     Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User          @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+  reads       MessageRead[]
+
+  @@index([requestId, createdAt])
+  @@index([authorId])
+}
+
+model MessageRead {
+  messageId String   @db.Uuid
+  userId    String   @db.Uuid
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}
