@@ -33,6 +33,13 @@ jobs:
         with: { version: 11 }
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm, cache-dependency-path: backend/pnpm-lock.yaml }
+      - name: Start MinIO
+        # service-контейнеры не принимают аргументы запуска, поэтому docker run
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
+            ghcr.io/coollabsio/minio:latest server /data
+          curl -sf --retry 30 --retry-connrefused --retry-delay 1 http://localhost:9000/minio/health/live
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma generate
       - run: pnpm prisma migrate deploy

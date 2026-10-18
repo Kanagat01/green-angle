@@ -23,6 +23,18 @@ export const envSchema = z.object({
   S3_BUCKET: z.string().min(1),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
+  // Адрес, который видит браузер (в presigned URL). По умолчанию равен S3_ENDPOINT
+  S3_PUBLIC_ENDPOINT: z.string().url().optional(),
+  S3_PRESIGN_PUT_TTL_SEC: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60),
+  S3_PRESIGN_GET_TTL_SEC: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60),
   STRICT_ATTACHMENTS: z
     .enum(['true', 'false'])
     .default('false')
