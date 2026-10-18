@@ -64,9 +64,10 @@ export class RealtimeGateway
 
   handleConnection(socket: AuthedSocket) {
     const { user, expiresAtMs } = socket.data;
-    void socket.join(
+    void socket.join([
       user.role === Role.ADMIN ? rooms.admins : rooms.client(user.clientId!),
-    );
+      rooms.user(user.id),
+    ]);
 
     const ttl = Math.max(0, expiresAtMs - Date.now());
     socket.data.expiryTimer = setTimeout(() => socket.disconnect(true), ttl);
@@ -124,15 +125,22 @@ export class RealtimeGateway
     const payload = await this.jwt.verifyAsync<
       AccessTokenPayload & { exp: number }
     >(token, { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET') });
-    if (payload.role !== Role.ADMIN && !payload.clientId) {
-      this.logger.warn(`User ${payload.sub} has no client; connection refused`);
+
+    // Роль и клиент — из БД (как в HTTP-guard); неактивный пользователь не подключается
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, clientId: true, isActive: true },
+    });
+    if (!user?.isActive) throw new Error('inactive');
+    if (user.role !== Role.ADMIN && !user.clientId) {
+      this.logger.warn(`User ${user.id} has no client; connection refused`);
       throw new Error('no client');
     }
 
     socket.data.user = {
-      id: payload.sub,
-      role: payload.role,
-      clientId: payload.clientId,
+      id: user.id,
+      role: user.role,
+      clientId: user.clientId,
     };
     socket.data.expiresAtMs = payload.exp * 1000;
   }

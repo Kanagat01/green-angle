@@ -124,6 +124,17 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
       });
       const vehicleIds = vehicles.map((v) => v.id);
 
+      // Пользователи прогона: фикстуры + созданные через API (клиент с tag или tag в email)
+      const extraUsers = await prisma.user.findMany({
+        where: {
+          OR: [{ clientId: { in: clientIds } }, { email: { contains: tag } }],
+        },
+        select: { id: true },
+      });
+      const allUserIds = [
+        ...new Set([...userIds, ...extraUsers.map((u) => u.id)]),
+      ];
+
       await prisma.$transaction(async (tx) => {
         // Журнал append-only (триггер). Для очистки тестовых данных отключаем триггер
         // в рамках этой транзакции: DDL транзакционный, после коммита триггер снова активен.
@@ -134,7 +145,7 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
           where: {
             OR: [
               { vehicleId: { in: vehicleIds } },
-              { changedById: { in: userIds } },
+              { changedById: { in: allUserIds } },
             ],
           },
         });
@@ -143,10 +154,10 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
         );
         await tx.request.deleteMany({ where: { clientId: { in: clientIds } } });
         await tx.attachment.deleteMany({
-          where: { uploadedById: { in: userIds } },
+          where: { uploadedById: { in: allUserIds } },
         });
         await tx.vehicle.deleteMany({ where: { id: { in: vehicleIds } } });
-        await tx.user.deleteMany({ where: { id: { in: userIds } } });
+        await tx.user.deleteMany({ where: { id: { in: allUserIds } } });
         await tx.client.deleteMany({ where: { id: { in: clientIds } } });
       });
     },

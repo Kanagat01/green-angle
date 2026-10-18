@@ -45,7 +45,6 @@ describe('Request dialog (e2e)', () => {
   let prisma: PrismaService;
   let storage: StorageService;
   let fx: Fixtures;
-  let secondAdminId: string;
   const tokens = {
     admin: '',
     admin2: '',
@@ -95,7 +94,6 @@ describe('Request dialog (e2e)', () => {
         role: Role.ADMIN,
       },
     });
-    secondAdminId = second.id;
 
     tokens.admin = await accessTokenFor(app, fx.admin.email);
     tokens.admin2 = await accessTokenFor(app, second.email);
@@ -107,7 +105,6 @@ describe('Request dialog (e2e)', () => {
   afterAll(async () => {
     await Promise.all(s3Keys.map((key) => storage.delete(key).catch(() => {})));
     await fx.cleanup();
-    await prisma.user.delete({ where: { id: secondAdminId } });
     await app.close();
   });
 

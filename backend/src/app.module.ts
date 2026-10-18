@@ -10,6 +10,7 @@ import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { RequestsModule } from './requests/requests.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { ClientsModule } from './clients/clients.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
     RequestsModule,
     MessagesModule,
     RealtimeModule,
+    ClientsModule,
   ],
 })
 export class AppModule {}

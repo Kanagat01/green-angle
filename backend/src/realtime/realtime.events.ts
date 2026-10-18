@@ -19,6 +19,7 @@ export const RealtimeCommands = {
 /** Комнаты: клиент и менеджеры подключаются автоматически, комната заявки — по запросу. */
 export const rooms = {
   admins: 'admins',
+  user: (userId: string) => `user:${userId}`,
   client: (clientId: string) => `client:${clientId}`,
   request: (requestId: string) => `request:${requestId}`,
 } as const;

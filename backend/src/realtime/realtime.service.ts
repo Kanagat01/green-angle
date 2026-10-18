@@ -46,6 +46,17 @@ export class RealtimeService {
     );
   }
 
+  /** Закрывает все сокеты пользователя (деактивация, сброс пароля, удаление). */
+  disconnectUser(userId: string) {
+    try {
+      this.server?.in(rooms.user(userId)).disconnectSockets(true);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to disconnect user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private emit(targets: string[], event: string, payload: unknown) {
     try {
       // Несколько комнат в одном вызове: сокет в нескольких из них получит событие один раз

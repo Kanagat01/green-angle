@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import { AccessTokenPayload, AuthUser } from '../auth-user.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 
@@ -17,8 +18,8 @@ interface RequestWithUser {
 
 /**
  * Глобальный guard: требует валидный access-токен везде, кроме маршрутов с @Public().
- * Состояние пользователя (isActive) проверяется при refresh, поэтому деактивация
- * вступает в силу не позже, чем через время жизни access-токена.
+ * Роль и клиент берутся из БД, а не из токена, и пользователь должен быть активен —
+ * поэтому деактивация и смена привязки к клиенту действуют сразу, а не после истечения токена.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -26,6 +27,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,18 +44,22 @@ export class JwtAuthGuard implements CanActivate {
     const [scheme, token] = request.headers.authorization?.split(' ') ?? [];
     if (scheme !== 'Bearer' || !token) throw new UnauthorizedException();
 
+    let payload: AccessTokenPayload;
     try {
-      const payload = await this.jwt.verifyAsync<AccessTokenPayload>(token, {
+      payload = await this.jwt.verifyAsync<AccessTokenPayload>(token, {
         secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
-      request.user = {
-        id: payload.sub,
-        role: payload.role,
-        clientId: payload.clientId,
-      };
     } catch {
       throw new UnauthorizedException();
     }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, clientId: true, isActive: true },
+    });
+    if (!user?.isActive) throw new UnauthorizedException();
+
+    request.user = { id: user.id, role: user.role, clientId: user.clientId };
     return true;
   }
 }
