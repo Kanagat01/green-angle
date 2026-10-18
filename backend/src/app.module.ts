@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
+import { RequestsModule } from './requests/requests.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { VehiclesModule } from './vehicles/vehicles.module.js';
     StorageModule,
     UploadsModule,
     VehiclesModule,
+    RequestsModule,
   ],
 })
 export class AppModule {}

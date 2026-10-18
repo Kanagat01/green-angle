@@ -136,6 +136,7 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
         await tx.$executeRawUnsafe(
           'ALTER TABLE "VehicleStatusLog" ENABLE TRIGGER "VehicleStatusLog_append_only"',
         );
+        await tx.request.deleteMany({ where: { clientId: { in: clientIds } } });
         await tx.attachment.deleteMany({
           where: { uploadedById: { in: userIds } },
         });
