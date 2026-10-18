@@ -8,6 +8,7 @@ import { StorageModule } from './storage/storage.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { RequestsModule } from './requests/requests.module.js';
+import { MessagesModule } from './messages/messages.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RequestsModule } from './requests/requests.module.js';
     UploadsModule,
     VehiclesModule,
     RequestsModule,
+    MessagesModule,
   ],
 })
 export class AppModule {}

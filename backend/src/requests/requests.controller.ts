@@ -18,6 +18,8 @@ import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { Role } from '../generated/prisma/client.js';
+import { UnreadCountDto } from '../messages/dto/message-views.dto.js';
+import { MessagesService } from '../messages/messages.service.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
 import { ListRequestsQueryDto } from './dto/list-requests-query.dto.js';
 import { RequestListDto, RequestViewDto } from './dto/request-views.dto.js';
@@ -28,12 +30,22 @@ import { RequestsService } from './requests.service.js';
 @ApiBearerAuth()
 @Controller('requests')
 export class RequestsController {
-  constructor(private readonly requests: RequestsService) {}
+  constructor(
+    private readonly requests: RequestsService,
+    private readonly messages: MessagesService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: RequestListDto })
   list(@CurrentUser() user: AuthUser, @Query() query: ListRequestsQueryDto) {
     return this.requests.list(user, query);
+  }
+
+  /** Счётчик непрочитанных по всем заявкам пользователя (для бейджа в меню). */
+  @Get('unread-count')
+  @ApiOkResponse({ type: UnreadCountDto })
+  unreadCount(@CurrentUser() user: AuthUser) {
+    return this.messages.totalUnread(user);
   }
 
   @Post()

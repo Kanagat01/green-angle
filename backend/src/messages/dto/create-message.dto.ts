@@ -1,0 +1,79 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+import { AttachmentKind, MessageType } from '../../generated/prisma/client.js';
+
+export const MAX_TEXT_LENGTH = 5000;
+export const MAX_LINKS = 10;
+export const MAX_MESSAGE_ATTACHMENTS = 10;
+
+/** Вложения-варианты в диалоге: фото, видео, файлы. Голосовые идут отдельным потоком. */
+export const MESSAGE_ATTACHMENT_KINDS = [
+  AttachmentKind.PHOTO,
+  AttachmentKind.VIDEO,
+  AttachmentKind.FILE,
+] as const;
+
+export class MessageAttachmentDto {
+  @ApiProperty({
+    description:
+      'Ключ объекта из POST /uploads/presign после успешной загрузки',
+  })
+  @IsString()
+  @MaxLength(300)
+  key: string;
+
+  @ApiProperty({ enum: MESSAGE_ATTACHMENT_KINDS })
+  @IsIn(MESSAGE_ATTACHMENT_KINDS)
+  kind: AttachmentKind;
+}
+
+export class CreateMessageDto {
+  @ApiPropertyOptional({ enum: [MessageType.TEXT], default: MessageType.TEXT })
+  @IsOptional()
+  @IsEnum(MessageType)
+  @IsIn([MessageType.TEXT])
+  type: MessageType = MessageType.TEXT;
+
+  @ApiPropertyOptional({ maxLength: MAX_TEXT_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_TEXT_LENGTH)
+  text?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MAX_LINKS,
+    description: 'Ссылки на объявления (http/https)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_LINKS)
+  @IsUrl(
+    { protocols: ['http', 'https'], require_protocol: true },
+    { each: true },
+  )
+  @MaxLength(2000, { each: true })
+  links?: string[];
+
+  @ApiPropertyOptional({
+    type: [MessageAttachmentDto],
+    maxItems: MAX_MESSAGE_ATTACHMENTS,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_MESSAGE_ATTACHMENTS)
+  @ValidateNested({ each: true })
+  @Type(() => MessageAttachmentDto)
+  attachments?: MessageAttachmentDto[];
+}

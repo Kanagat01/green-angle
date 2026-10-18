@@ -6,6 +6,7 @@ import {
 import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma, RequestStatus } from '../generated/prisma/client.js';
+import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
 import { RequestListDto, RequestViewDto } from './dto/request-views.dto.js';
@@ -25,7 +26,10 @@ type RequestWithClient = Prisma.RequestGetPayload<{ include: typeof include }>;
 
 @Injectable()
 export class RequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly messages: MessagesService,
+  ) {}
 
   /** Заявка на подбор от имени своего клиента. Статус всегда NEW. */
   async create(user: AuthUser, dto: CreateRequestDto): Promise<RequestViewDto> {
@@ -44,7 +48,7 @@ export class RequestsService {
       },
       include,
     });
-    return toView(created);
+    return toView(created, 0);
   }
 
   /**
@@ -68,7 +72,14 @@ export class RequestsService {
       }),
       this.prisma.request.count({ where }),
     ]);
-    return { items: items.map(toView), total };
+    const unread = await this.messages.unreadByRequest(
+      user,
+      items.map((r) => r.id),
+    );
+    return {
+      items: items.map((r) => toView(r, unread.get(r.id) ?? 0)),
+      total,
+    };
   }
 
   async get(user: AuthUser, id: string): Promise<RequestViewDto> {
@@ -78,11 +89,12 @@ export class RequestsService {
     });
     // 404, а не 403: не раскрываем существование чужих заявок
     if (!request) throw new NotFoundException('Request not found');
-    return toView(request);
+    const unread = await this.messages.unreadByRequest(user, [id]);
+    return toView(request, unread.get(id) ?? 0);
   }
 }
 
-function toView(r: RequestWithClient): RequestViewDto {
+function toView(r: RequestWithClient, unreadCount: number): RequestViewDto {
   return {
     id: r.id,
     title: r.title,
@@ -92,6 +104,7 @@ function toView(r: RequestWithClient): RequestViewDto {
     status: r.status,
     vehicleId: r.vehicleId,
     client: r.client,
+    unreadCount,
     createdAt: r.createdAt,
   };
 }

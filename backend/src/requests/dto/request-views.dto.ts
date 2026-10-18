@@ -41,6 +41,11 @@ export class RequestViewDto {
   @ApiProperty({ type: RequestClientDto })
   client: RequestClientDto;
 
+  @ApiProperty({
+    description: 'Непрочитанные сообщения диалога для текущего пользователя',
+  })
+  unreadCount: number;
+
   @ApiProperty()
   createdAt: Date;
 }
