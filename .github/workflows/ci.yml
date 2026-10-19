@@ -47,3 +47,11 @@ jobs:
       - run: pnpm build
       - run: pnpm test
       - run: pnpm test:e2e
+
+  # Боевые образы должны собираться (иначе ошибка вскроется только при деплое)
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build ./backend --target runtime -t green-angle-api
+      - run: docker build ./backend --target migrate -t green-angle-migrate

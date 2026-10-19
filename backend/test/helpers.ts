@@ -17,16 +17,21 @@ export const PASSWORD = 'test-password-123';
  * WebSocket-клиентов); адрес потом доступен через `await app.getUrl()`.
  */
 export async function createApp(
-  extra: { controllers?: any[]; listen?: boolean } = {},
+  extra: {
+    controllers?: any[];
+    listen?: boolean;
+    /** Боевой адаптер (createFastifyAdapter) вместо простого — для тестов закалки */
+    adapter?: FastifyAdapter;
+  } = {},
 ): Promise<NestFastifyApplication> {
   const moduleRef: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
     controllers: extra.controllers ?? [],
   }).compile();
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    new FastifyAdapter(),
+    extra.adapter ?? new FastifyAdapter(),
   );
-  configureApp(app);
+  await configureApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
   if (extra.listen) await app.listen(0, '127.0.0.1');

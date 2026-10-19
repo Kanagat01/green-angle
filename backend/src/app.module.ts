@@ -11,12 +11,15 @@ import { RequestsModule } from './requests/requests.module.js';
 import { MessagesModule } from './messages/messages.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ClientsModule } from './clients/clients.module.js';
+import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 
 @Module({
   imports: [
     ConfigModule,
     HealthModule,
     PrismaModule,
+    // До AuthModule: глобальный throttler-guard должен сработать раньше JWT-guard
+    RateLimitModule,
     AuthModule,
     UsersModule,
     StorageModule,

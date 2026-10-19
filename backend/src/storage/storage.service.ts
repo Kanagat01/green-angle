@@ -134,6 +134,11 @@ export class StorageService implements OnModuleInit {
     );
   }
 
+  /** Проверка доступности бакета (для readiness). Бросает ошибку, если S3 недоступен. */
+  async ping(): Promise<void> {
+    await this.internal.send(new HeadBucketCommand({ Bucket: this.bucket }));
+  }
+
   async delete(key: string): Promise<void> {
     await this.internal.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
