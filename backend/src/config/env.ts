@@ -5,6 +5,10 @@ const positiveInt = (fallback: number) =>
 
 const boolFlag = z.enum(['true', 'false']).transform((v) => v === 'true');
 
+/** В .env и docker-compose необязательные переменные часто остаются пустыми строками. */
+const emptyToUndefined = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), schema);
+
 /** Заглушки из .env.example / docker-compose — в production использовать их нельзя. */
 const PLACEHOLDER_SECRET = /^change-me/i;
 const DEFAULT_S3_SECRET = 'minio12345';
@@ -41,6 +45,28 @@ export const envSchema = z
     S3_PRESIGN_GET_TTL_SEC: positiveInt(60 * 60),
 
     STRICT_ATTACHMENTS: boolFlag.default(false),
+
+    /**
+     * Redis для общих счётчиков rate limit между экземплярами API. Без него счётчики
+     * хранятся в памяти процесса (годится для одного экземпляра и разработки).
+     * Пустая строка равна «не задано».
+     */
+    REDIS_URL: emptyToUndefined(
+      z
+        .string()
+        .url()
+        .refine(
+          (u) => /^rediss?:\/\//.test(u),
+          'must start with redis:// or rediss://',
+        )
+        .optional(),
+    ),
+
+    /**
+     * Путь к ffprobe: если задан, длительность голосовых проверяется по самому файлу.
+     * Пустая строка равна «не задано».
+     */
+    FFPROBE_PATH: emptyToUndefined(z.string().min(1).optional()),
 
     /** Разрешённые Origin для CORS и Socket.IO через запятую; пусто — кросс-доменные запросы запрещены */
     CORS_ORIGINS: z
@@ -90,6 +116,21 @@ export const envSchema = z
           message: 'placeholder value is not allowed in production',
         });
       }
+    }
+    // Без них функции молча отключатся, а ошибка вскроется только под нагрузкой или при споре
+    if (!env.REDIS_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['REDIS_URL'],
+        message: 'is required in production (shared rate limit counters)',
+      });
+    }
+    if (!env.FFPROBE_PATH) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FFPROBE_PATH'],
+        message: 'is required in production (voice duration verification)',
+      });
     }
     if (env.S3_SECRET_KEY === DEFAULT_S3_SECRET) {
       ctx.addIssue({

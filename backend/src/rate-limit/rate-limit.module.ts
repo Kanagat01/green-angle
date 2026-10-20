@@ -1,8 +1,10 @@
 import { ExecutionContext, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerStorageService } from '@nestjs/throttler';
+import { RedisService } from '../redis/redis.service.js';
 import { AppThrottlerGuard } from './app-throttler.guard.js';
+import { RedisThrottlerStorage } from './redis-throttler-storage.js';
 
 interface HttpRequest {
   method: string;
@@ -27,7 +29,8 @@ const ipAndEmail = (req: Record<string, any>) => {
 };
 
 /**
- * Три лимитера (счётчики в памяти процесса; при нескольких инстансах нужен общий Redis-сторадж):
+ * Три лимитера. Счётчики общие для всех экземпляров API, если задан REDIS_URL (при недоступном
+ * Redis временно считаем в памяти процесса), иначе — только в памяти процесса:
  * - default — общий потолок запросов с одного IP;
  * - login-account — попытки входа по связке IP + email (перебор пароля);
  * - login-ip — попытки входа с одного IP (перебор логинов).
@@ -36,12 +39,21 @@ const ipAndEmail = (req: Record<string, any>) => {
 @Module({
   imports: [
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      inject: [ConfigService, RedisService],
+      useFactory: (config: ConfigService, redis: RedisService) => {
         const window = (key: string) => config.getOrThrow<number>(key) * 1000;
         const loginTtl = window('RATE_LIMIT_LOGIN_WINDOW_SEC');
         return {
           errorMessage: 'Too many requests, try again later',
+          // Redis — общие счётчики для всех экземпляров; без него — память процесса
+          ...(redis.client
+            ? {
+                storage: new RedisThrottlerStorage(
+                  redis.client,
+                  new ThrottlerStorageService(),
+                ),
+              }
+            : {}),
           throttlers: [
             {
               name: 'default',

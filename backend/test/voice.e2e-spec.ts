@@ -1,7 +1,18 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { randomUUID } from 'node:crypto';
+import {
+  AudioProbeError,
+  AudioProbeService,
+} from '../src/audio/audio-probe.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { StorageService } from '../src/storage/storage.service.js';
+import {
+  audioFixture,
+  AudioFormat,
+  MIME_OF,
+  videoWithAudioMp4,
+  wavBuffer,
+} from './audio-fixtures.js';
 import {
   accessTokenFor,
   createApp,
@@ -324,7 +335,8 @@ describe('Voice messages (e2e)', () => {
 
     it('client records a voice note, the manager plays it back and answers with voice', async () => {
       const id = await newRequest();
-      const clientAudio = new TextEncoder().encode('client-opus-recording');
+      // как у MediaRecorder в Chrome: webm/opus без длительности в заголовке
+      const clientAudio = await audioFixture('webm', 3);
       const key = await uploadVoice(
         id,
         tokens.broker,
@@ -335,7 +347,7 @@ describe('Voice messages (e2e)', () => {
       const sent = await postMessage(id, tokens.broker, {
         type: 'VOICE',
         attachmentKey: key,
-        durationSec: 42,
+        durationSec: 3,
       });
       expect(sent.statusCode).toBe(201);
       const msg = sent.json<Message>();
@@ -343,7 +355,7 @@ describe('Voice messages (e2e)', () => {
         type: 'VOICE',
         text: null,
         links: [],
-        durationSec: 42,
+        durationSec: 3,
         isMine: true,
         author: { role: 'BROKER' },
       });
@@ -364,7 +376,9 @@ describe('Voice messages (e2e)', () => {
       expect(list.items[0].isMine).toBe(false);
       const playback = await fetch(list.items[0].attachments[0].url);
       expect(playback.ok).toBe(true);
-      expect(new Uint8Array(await playback.arrayBuffer())).toEqual(clientAudio);
+      expect(
+        Buffer.from(await playback.arrayBuffer()).equals(clientAudio),
+      ).toBe(true);
 
       // непрочитанное считается и для голосовых
       const unread = (
@@ -381,12 +395,12 @@ describe('Voice messages (e2e)', () => {
         id,
         tokens.admin,
         'audio/ogg',
-        new Uint8Array(16),
+        await audioFixture('ogg', 2),
       );
       const reply = await postMessage(id, tokens.admin, {
         type: 'VOICE',
         attachmentKey: replyKey,
-        durationSec: 7,
+        durationSec: 2,
       });
       expect(reply.statusCode).toBe(201);
       expect(reply.json<Message>()).toMatchObject({
@@ -400,13 +414,13 @@ describe('Voice messages (e2e)', () => {
       ).toBe('IN_DIALOG');
     });
 
-    it('accepts the maximum duration of 5 minutes', async () => {
+    it('accepts a recording of exactly 5 minutes', async () => {
       const id = await newRequest();
       const key = await uploadVoice(
         id,
         tokens.broker,
-        'audio/mp4',
-        new Uint8Array(32),
+        'audio/wav',
+        wavBuffer(300),
       );
       const res = await postMessage(id, tokens.broker, {
         type: 'VOICE',
@@ -414,7 +428,8 @@ describe('Voice messages (e2e)', () => {
         durationSec: 300,
       });
       expect(res.statusCode).toBe(201);
-      expect(res.json<Message>().attachments[0].mime).toBe('audio/mp4');
+      expect(res.json<Message>()).toMatchObject({ durationSec: 300 });
+      expect(res.json<Message>().attachments[0].mime).toBe('audio/wav');
     });
 
     it('cannot reuse the same recording in a second message', async () => {
@@ -423,9 +438,9 @@ describe('Voice messages (e2e)', () => {
         id,
         tokens.broker,
         'audio/wav',
-        new Uint8Array(32),
+        wavBuffer(1),
       );
-      const payload = { type: 'VOICE', attachmentKey: key, durationSec: 5 };
+      const payload = { type: 'VOICE', attachmentKey: key, durationSec: 1 };
       expect((await postMessage(id, tokens.broker, payload)).statusCode).toBe(
         201,
       );
@@ -441,12 +456,12 @@ describe('Voice messages (e2e)', () => {
         id,
         tokens.admin,
         'audio/ogg',
-        new Uint8Array(16),
+        await audioFixture('ogg', 2),
       );
       const res = await postMessage(id, tokens.broker, {
         type: 'VOICE',
         attachmentKey: adminKey,
-        durationSec: 5,
+        durationSec: 2,
       });
       expect(res.statusCode).toBe(400);
     });
@@ -457,7 +472,7 @@ describe('Voice messages (e2e)', () => {
         id,
         tokens.broker,
         'audio/webm',
-        new Uint8Array(16),
+        await audioFixture('webm', 2),
       );
       await prisma.request.update({
         where: { id },
@@ -466,10 +481,161 @@ describe('Voice messages (e2e)', () => {
       const res = await postMessage(id, tokens.broker, {
         type: 'VOICE',
         attachmentKey: key,
-        durationSec: 5,
+        durationSec: 2,
       });
       expect(res.statusCode).toBe(409);
       expect(await prisma.attachment.count({ where: { key } })).toBe(0);
+    });
+
+    describe('server-side duration verification (ffprobe)', () => {
+      /** Загружает файл, пробует отправить голосовое и возвращает ответ + число сообщений. */
+      async function send(
+        mime: string,
+        bytes: Uint8Array,
+        durationSec: number,
+        token = tokens.broker,
+      ) {
+        const id = await newRequest();
+        const key = await uploadVoice(id, token, mime, bytes);
+        const res = await postMessage(id, token, {
+          type: 'VOICE',
+          attachmentKey: key,
+          durationSec,
+        });
+        return {
+          res,
+          messages: await prisma.message.count({ where: { requestId: id } }),
+          attachments: await prisma.attachment.count({ where: { key } }),
+        };
+      }
+
+      it.each<[AudioFormat, number]>([
+        ['webm', 3],
+        ['webm-with-duration', 3],
+        ['ogg', 3],
+        ['mp4', 3],
+        ['mp4-fragmented', 3],
+        ['mp3', 3],
+        ['wav', 3],
+      ])(
+        'accepts a real %s recording and stores the measured length',
+        async (format) => {
+          const audio = await audioFixture(format, 3);
+          const { res } = await send(MIME_OF[format], audio, 3);
+          expect(res.statusCode).toBe(201);
+          expect(res.json<Message>()).toMatchObject({
+            type: 'VOICE',
+            durationSec: 3,
+          });
+        },
+      );
+
+      it('stores the measured duration, not the claimed one, when they differ within tolerance', async () => {
+        const { res } = await send('audio/wav', wavBuffer(5), 6);
+        expect(res.statusCode).toBe(201);
+        expect(res.json<Message>().durationSec).toBe(5);
+      });
+
+      it('rejects a claimed duration far from the real one', async () => {
+        const { res, messages, attachments } = await send(
+          'audio/wav',
+          wavBuffer(3),
+          60,
+        );
+        expect(res.statusCode).toBe(400);
+        expect(res.json<{ message: string }>().message).toContain(
+          'does not match',
+        );
+        expect(messages).toBe(0);
+        expect(attachments).toBe(0);
+      });
+
+      it('rejects the opposite lie: a long file claimed to be short', async () => {
+        const { res } = await send('audio/wav', wavBuffer(120), 10);
+        expect(res.statusCode).toBe(400);
+      });
+
+      it('enforces the 5-minute limit on the real duration, even when the claim says 300', async () => {
+        const { res, messages, attachments } = await send(
+          'audio/wav',
+          wavBuffer(310),
+          300,
+        );
+        expect(res.statusCode).toBe(400);
+        expect(res.json<{ message: string }>().message).toContain(
+          'longer than 300',
+        );
+        expect(messages).toBe(0);
+        expect(attachments).toBe(0);
+      });
+
+      it('rejects bytes that are not audio although the mime type says so', async () => {
+        const garbage = new Uint8Array(2048).map((_, i) => (i * 31) % 251);
+        for (const mime of [
+          'audio/webm',
+          'audio/ogg',
+          'audio/mp4',
+          'audio/mpeg',
+          'audio/wav',
+        ]) {
+          const { res, messages, attachments } = await send(mime, garbage, 5);
+          expect(res.statusCode).toBe(400);
+          expect(res.json<{ message: string }>().message).toContain(
+            'not a valid audio',
+          );
+          expect(messages).toBe(0);
+          expect(attachments).toBe(0);
+        }
+      });
+
+      it('rejects a video file uploaded as audio/mp4', async () => {
+        const { res, attachments } = await send(
+          'audio/mp4',
+          await videoWithAudioMp4(2),
+          2,
+        );
+        expect(res.statusCode).toBe(400);
+        expect(attachments).toBe(0);
+      });
+
+      it('rejects audio whose real format does not match the declared mime', async () => {
+        const { res } = await send('audio/mpeg', wavBuffer(3), 3);
+        expect(res.statusCode).toBe(400);
+      });
+
+      it('answers 503, not 400, when ffprobe itself is unavailable, and registers nothing', async () => {
+        vi.spyOn(
+          app.get(AudioProbeService),
+          'measureObject',
+        ).mockRejectedValueOnce(
+          new AudioProbeError('UNAVAILABLE', 'ffprobe cannot be executed'),
+        );
+        const { res, messages, attachments } = await send(
+          'audio/wav',
+          wavBuffer(2),
+          2,
+        );
+        expect(res.statusCode).toBe(503);
+        expect(messages).toBe(0);
+        expect(attachments).toBe(0);
+      });
+
+      it('applies to the manager too', async () => {
+        const ok = await send(
+          'audio/ogg',
+          await audioFixture('ogg', 2),
+          2,
+          tokens.admin,
+        );
+        expect(ok.res.statusCode).toBe(201);
+        const lie = await send(
+          'audio/ogg',
+          await audioFixture('ogg', 2),
+          90,
+          tokens.admin,
+        );
+        expect(lie.res.statusCode).toBe(400);
+      });
     });
   });
 });

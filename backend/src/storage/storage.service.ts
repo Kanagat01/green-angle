@@ -11,6 +11,9 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import type { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { AttachmentKind } from '../generated/prisma/client.js';
 import { validateUpload } from './upload-rules.js';
 
@@ -132,6 +135,15 @@ export class StorageService implements OnModuleInit {
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: this.getTtl },
     );
+  }
+
+  /** Скачивает объект в локальный файл (потоком, без загрузки целиком в память). */
+  async downloadToFile(key: string, filePath: string): Promise<void> {
+    const res = await this.internal.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    if (!res.Body) throw new Error(`Object ${key} has no body`);
+    await pipeline(res.Body as Readable, createWriteStream(filePath));
   }
 
   /** Проверка доступности бакета (для readiness). Бросает ошибку, если S3 недоступен. */

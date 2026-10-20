@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { io, Socket } from 'socket.io-client';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { StorageService } from '../src/storage/storage.service.js';
+import { wavBuffer } from './audio-fixtures.js';
 import type {
   MessageCreatedPayload,
   RequestUpdatedPayload,
@@ -307,12 +308,12 @@ describe('Realtime (e2e)', () => {
         const admin = await connect(tokens.admin);
         await admin.join(id);
 
-        const audio = new TextEncoder().encode('realtime-voice');
+        const audio = wavBuffer(15);
         const ticketRes = await http(
           'POST',
           `/requests/${id}/voice-upload-url`,
           tokens.broker,
-          { mime: 'audio/webm', size: audio.length },
+          { mime: 'audio/wav', size: audio.length },
         );
         const ticket = ticketRes.json<{
           key: string;
@@ -342,7 +343,9 @@ describe('Realtime (e2e)', () => {
         expect(message.attachments).toHaveLength(1);
         expect(message.attachments[0].kind).toBe('AUDIO');
         const playback = await fetch(message.attachments[0].url);
-        expect(new Uint8Array(await playback.arrayBuffer())).toEqual(audio);
+        expect(Buffer.from(await playback.arrayBuffer()).equals(audio)).toBe(
+          true,
+        );
       },
     );
 

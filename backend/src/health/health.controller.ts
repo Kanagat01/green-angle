@@ -12,6 +12,7 @@ import {
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RedisService } from '../redis/redis.service.js';
 import { StorageService } from '../storage/storage.service.js';
 
 type CheckState = 'up' | 'down';
@@ -26,6 +27,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly redis: RedisService,
   ) {}
 
   /** Живость процесса: не обращается к зависимостям. */
@@ -35,7 +37,10 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  /** Готовность принимать трафик: база данных и S3 доступны. Для проверок оркестратора. */
+  /**
+   * Готовность принимать трафик: база данных и S3 доступны (иначе 503). Redis, если настроен,
+   * отражается в `checks`; его недоступность даёт status `degraded`, но не 503.
+   */
   @Get('ready')
   @ApiOkResponse({
     schema: {
@@ -46,18 +51,21 @@ export class HealthController {
     description: 'Одна из зависимостей недоступна',
   })
   async ready() {
-    const [database, storage] = await Promise.all([
+    const [database, storage, redis] = await Promise.all([
       this.probe('database', async () => {
         await this.prisma.$queryRaw`SELECT 1`;
       }),
       this.probe('storage', () => this.storage.ping()),
+      this.redis.status(),
     ]);
-    const checks = { database, storage };
+    // redis присутствует, только если он настроен
+    const checks = { database, storage, ...(redis ? { redis } : {}) };
     if (database === 'down' || storage === 'down') {
       // Подробности ошибок — только в лог, наружу только up/down
       throw new ServiceUnavailableException({ status: 'unavailable', checks });
     }
-    return { status: 'ok', checks };
+    // Redis нужен только общим счётчикам лимитов: без него API работает, поэтому не 503
+    return { status: redis === 'down' ? 'degraded' : 'ok', checks };
   }
 
   private async probe(

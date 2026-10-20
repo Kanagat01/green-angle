@@ -12,6 +12,8 @@ import { MessagesModule } from './messages/messages.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ClientsModule } from './clients/clients.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
+import { RedisModule } from './redis/redis.module.js';
+import { AudioModule } from './audio/audio.module.js';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { RateLimitModule } from './rate-limit/rate-limit.module.js';
     MessagesModule,
     RealtimeModule,
     ClientsModule,
+    RedisModule,
+    AudioModule,
   ],
 })
 export class AppModule {}

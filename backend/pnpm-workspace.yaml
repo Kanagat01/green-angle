@@ -6,3 +6,13 @@ allowBuilds:
   prisma: true
   unrs-resolver: true
   workerd: false
+  # Бинарники ffmpeg/ffprobe для тестов: единственный скрипт пакетов — `chmod u+x <бинарник>`.
+  # Без разрешения pnpm install падает на Linux (CI, Docker) и macOS
+  '@ffmpeg-installer/linux-x64': true
+  '@ffmpeg-installer/linux-arm64': true
+  '@ffmpeg-installer/darwin-x64': true
+  '@ffmpeg-installer/darwin-arm64': true
+  '@ffprobe-installer/linux-x64': true
+  '@ffprobe-installer/linux-arm64': true
+  '@ffprobe-installer/darwin-x64': true
+  '@ffprobe-installer/darwin-arm64': true

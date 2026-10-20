@@ -12,7 +12,7 @@
 
 ## Стек
 
-Node.js 24 LTS · NestJS 12 (Fastify, ESM) · TypeScript 6 · PostgreSQL 16 + Prisma 7 · S3-совместимое хранилище (MinIO локально, Yandex Object Storage / Selectel в проде) · Socket.IO · JWT (access 15 мин + refresh 30 дней с ротацией), пароли — argon2id · Vitest · ESLint + Prettier · Docker Compose · Caddy (HTTPS) · GitHub Actions.
+Node.js 24 LTS · NestJS 12 (Fastify, ESM) · TypeScript 6 · PostgreSQL 16 + Prisma 7 · Redis 7 (общие счётчики rate limit) · S3-совместимое хранилище (MinIO локально, Yandex Object Storage / Selectel в проде) · ffprobe (проверка длительности голосовых) · Socket.IO · JWT (access 15 мин + refresh 30 дней с ротацией), пароли — argon2id · Vitest · ESLint + Prettier · Docker Compose · Caddy (HTTPS) · GitHub Actions.
 
 ## Структура репозитория
 
@@ -35,15 +35,16 @@ docker-compose.prod.yml   боевой запуск: Caddy + API + Postgres + м
 ### Всё в контейнерах
 
 ```bash
-docker compose up -d --build        # Postgres, MinIO, миграции, API на :3000
+docker compose up -d --build        # Postgres, Redis, MinIO, миграции, API на :3000
 ```
 
 ### API на хосте с горячей перезагрузкой
 
 ```bash
-docker compose up -d postgres minio
+docker compose up -d postgres redis minio
 cd backend
 cp .env.example .env                # значения по умолчанию подходят для локальной работы
+                                    # (для проверки длительности голосовых укажите FFPROBE_PATH, см. ниже)
 pnpm install
 pnpm prisma generate                # клиент Prisma → src/generated/prisma
 pnpm prisma migrate deploy          # применить миграции
@@ -67,7 +68,7 @@ pnpm start:dev
 ## Тесты
 
 ```bash
-docker compose up -d postgres minio     # e2e работают с реальной БД и S3
+docker compose up -d postgres redis minio   # e2e работают с реальными БД, Redis и S3
 cd backend
 pnpm lint
 pnpm build
@@ -75,7 +76,7 @@ pnpm test                               # unit
 pnpm test:e2e                           # интеграционные: HTTP, WebSocket, S3, БД
 ```
 
-Тестовые данные создаются с уникальным суффиксом и удаляются после прогона. Если S3 недоступен, тесты с хранилищем локально пропускаются; в CI (`CI=true`) недоступность S3 считается ошибкой. CI (`.github/workflows/ci.yml`) поднимает Postgres и MinIO, гоняет линт, сборку и все тесты, а также собирает боевые Docker-образы.
+Тестовые данные создаются с уникальным суффиксом и удаляются после прогона. Если S3 или Redis недоступны, их тесты локально пропускаются; в CI (`CI=true`) недоступность считается ошибкой. Для проверки голосовых тесты используют бинарники ffmpeg/ffprobe из devDependencies, ставить их в систему не нужно. CI (`.github/workflows/ci.yml`) поднимает Postgres, Redis и MinIO, гоняет линт, сборку и все тесты, а также собирает боевые Docker-образы.
 
 ## API в двух словах
 
@@ -107,6 +108,8 @@ pnpm test:e2e                           # интеграционные: HTTP, We
 | `S3_PUBLIC_ENDPOINT` | = `S3_ENDPOINT` | Адрес S3 в presigned URL для браузера |
 | `S3_PRESIGN_PUT_TTL_SEC`, `S3_PRESIGN_GET_TTL_SEC` | `900`, `3600` | Срок жизни ссылок загрузки / скачивания |
 | `STRICT_ATTACHMENTS` | `false` | `true` — нельзя пройти шаг без ожидаемого вложения |
+| `REDIS_URL` | пусто | `redis://host:6379`. Общие счётчики rate limit между экземплярами API; пусто — счётчики в памяти процесса. **Обязателен в production** |
+| `FFPROBE_PATH` | пусто | Путь к ffprobe: длительность голосовых и лимит 5 минут проверяются по самому файлу; пусто — проверка выключена. **Обязателен в production** (в Docker-образе ffprobe уже есть, `FFPROBE_PATH=ffprobe`) |
 | `CORS_ORIGINS` | пусто | Разрешённые Origin через запятую для CORS и Socket.IO; пусто — кросс-доменные запросы запрещены |
 | `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SEC` | `600`, `60` | Общий лимит запросов на IP |
 | `RATE_LIMIT_LOGIN_ACCOUNT_MAX` | `5` | Попыток входа на связку IP + email за окно |
@@ -122,7 +125,7 @@ cp .env.prod.example .env.prod      # заполнить: домен, парол
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Что поднимается: **Caddy** (автоматический HTTPS, WebSocket) → **API** (не от root, healthcheck) → **Postgres** (порт наружу не публикуется); отдельно **migrate** применяет миграции перед стартом API, а **backup** делает копии БД. Swagger в production выключен.
+Что поднимается: **Caddy** (автоматический HTTPS, WebSocket) → **API** (не от root, healthcheck, с ffprobe) → **Postgres** и **Redis** (порты наружу не публикуются); отдельно **migrate** применяет миграции перед стартом API, а **backup** делает копии БД. Swagger в production выключен. Лимиты запросов считаются в общем Redis, поэтому API можно запускать в нескольких экземплярах (распределение трафика между ними настраивается на прокси; в `deploy/Caddyfile` сейчас один upstream).
 
 Первого администратора создаёт отдельная команда (seed в production не используется — у него известные пароли):
 
@@ -164,7 +167,8 @@ $P exec postgres psql -U green -d postgres -c 'DROP DATABASE restore_check'
 ## Безопасность
 
 - Пароли — argon2id; access-токен короткий, refresh — с ротацией: повторное использование старого токена отзывает всю цепочку. Деактивация пользователя действует сразу (роль, клиент и `isActive` берутся из БД на каждый запрос; refresh-токены отзываются, сокеты закрываются).
-- Ограничение частоты запросов: отдельные лимиты на вход (по связке IP + email и по IP) и общий потолок на IP; ответ `429` с заголовком `Retry-After`. Счётчики хранятся в памяти процесса — при нескольких экземплярах API нужен общий Redis-сторадж.
+- Ограничение частоты запросов: отдельные лимиты на вход (по связке IP + email и по IP) и общий потолок на IP; ответ `429` с заголовком `Retry-After`. Счётчики общие для всех экземпляров API (Redis, скользящее окно, атомарный Lua-скрипт); в Redis ключи хэшированы, адресов и email там нет. Если Redis недоступен, API не падает: счёт временно идёт в памяти процесса, `GET /health/ready` показывает `degraded`.
+- Голосовые проверяются по самому файлу (ffprobe): реальная длительность, лимит 5 минут по факту, только аудиодорожки; формат разбирается принудительно по заявленному mime, а сетевые протоколы запрещены — через «аудиофайл» нельзя заставить сервер читать свои файлы или ходить по URL.
 - Заголовки безопасности (helmet), CORS по белому списку (без `*` и без cookie), лимит тела запроса 1 МБ, валидация и обрезка лишних полей во всех входных данных.
 - Файлы не проходят через API: presigned URL фиксирует тип и размер, а метаданные вложений берутся из самого хранилища.
 - Логи — одна JSON-строка на запрос (метод, путь без query, статус, время, пользователь, `requestId`); заголовки, тела запросов и токены не пишутся. Тот же `X-Request-Id` возвращается в ответе.
@@ -172,4 +176,4 @@ $P exec postgres psql -U green -d postgres -c 'DROP DATABASE restore_check'
 
 ## Что осталось за рамками MVP
 
-Уведомления по email/Telegram, транскрипция голосовых, серверная проверка длительности голосовых (ffprobe), общий Redis для лимитов и нескольких экземпляров API, отображение журнала смен статусов в интерфейсе. Фронтенд (Next.js) начнётся после получения макета.
+Уведомления по email/Telegram (очередь на BullMQ поверх уже подключённого Redis), транскрипция голосовых, отображение журнала смен статусов в интерфейсе. Фронтенд (Next.js) начнётся после получения макета.

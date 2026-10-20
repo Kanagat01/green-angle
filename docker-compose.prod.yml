@@ -24,8 +24,11 @@ services:
     restart: unless-stopped
     depends_on:
       migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
     environment:
       NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      FFPROBE_PATH: ffprobe
       PORT: 3000
       TRUST_PROXY: 'true'
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -64,6 +67,27 @@ services:
     # Порт наружу не публикуется: к базе ходят только контейнеры этой сети
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U green -d green_angle']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # Общие счётчики rate limit для всех экземпляров API. Данные эфемерные (на диск не пишутся),
+  # порт наружу не публикуется. Если Redis недоступен, API считает лимиты в памяти и продолжает работать.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ''
+      - --appendonly
+      - 'no'
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - volatile-ttl
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 10

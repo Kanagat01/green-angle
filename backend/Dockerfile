@@ -18,6 +18,9 @@ RUN pnpm prune --prod
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# ffprobe измеряет реальную длительность голосовых сообщений
+RUN apk add --no-cache ffmpeg
+ENV FFPROBE_PATH=ffprobe
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./

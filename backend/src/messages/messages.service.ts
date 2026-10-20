@@ -3,8 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
+import {
+  AudioProbeError,
+  AudioProbeService,
+} from '../audio/audio-probe.service.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import {
@@ -19,9 +24,13 @@ import { RealtimeService } from '../realtime/realtime.service.js';
 import {
   AttachmentsService,
   UploadRef,
+  VerifiedUpload,
 } from '../storage/attachments.service.js';
 import { StorageService } from '../storage/storage.service.js';
-import { CreateMessageDto } from './dto/create-message.dto.js';
+import {
+  CreateMessageDto,
+  MAX_VOICE_SECONDS,
+} from './dto/create-message.dto.js';
 import {
   MessageListDto,
   MessageViewDto,
@@ -46,6 +55,7 @@ export class MessagesService {
     private readonly attachments: AttachmentsService,
     private readonly storage: StorageService,
     private readonly realtime: RealtimeService,
+    private readonly audioProbe: AudioProbeService,
   ) {}
 
   /** Лента сообщений: страница до курсора `before` (или последние), от старых к новым. */
@@ -102,6 +112,13 @@ export class MessagesService {
 
     // Проверка файлов в S3 — до транзакции: сеть не должна держать блокировку
     const verified = await this.attachments.verify(user, content.refs);
+
+    if (content.type === MessageType.VOICE && this.audioProbe.enabled) {
+      content.durationSec = await this.verifyVoiceDuration(
+        verified[0],
+        content.durationSec!,
+      );
+    }
 
     try {
       const created = await this.prisma.$transaction(async (tx) => {
@@ -236,6 +253,46 @@ export class MessagesService {
       authorId: { not: user.id },
       reads: { none: { userId: user.id } },
     };
+  }
+
+  /**
+   * Сверяет заявленную клиентом длительность с реальной (ffprobe) и применяет лимит 5 минут
+   * к настоящей длительности файла. Сохраняется измеренное значение, а не слова клиента.
+   */
+  private async verifyVoiceDuration(
+    upload: VerifiedUpload,
+    claimedSec: number,
+  ): Promise<number> {
+    let actual: number;
+    try {
+      actual = await this.audioProbe.measureObject(upload.key, upload.mime);
+    } catch (err) {
+      if (err instanceof AudioProbeError && err.reason === 'INVALID_AUDIO') {
+        throw new BadRequestException(
+          'The uploaded file is not a valid audio recording',
+        );
+      }
+      throw new ServiceUnavailableException(
+        'Audio verification is temporarily unavailable',
+      );
+    }
+
+    const measured = Math.round(actual);
+    if (measured < 1) {
+      throw new BadRequestException('The recording is too short');
+    }
+    if (measured > MAX_VOICE_SECONDS) {
+      throw new BadRequestException(
+        `The recording is longer than ${MAX_VOICE_SECONDS} seconds`,
+      );
+    }
+    // Допуск на округление и на то, как клиент измеряет запись
+    if (Math.abs(actual - claimedSec) > Math.max(2, actual * 0.1)) {
+      throw new BadRequestException(
+        'durationSec does not match the uploaded recording',
+      );
+    }
+    return measured;
   }
 
   /**

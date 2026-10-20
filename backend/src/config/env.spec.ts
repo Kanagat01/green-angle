@@ -25,14 +25,39 @@ describe('validateEnv', () => {
     });
   });
 
+  it('treats empty REDIS_URL / FFPROBE_PATH as not set outside production', () => {
+    const env = validateEnv({ ...base, REDIS_URL: '', FFPROBE_PATH: '' });
+    expect(env.REDIS_URL).toBeUndefined();
+    expect(env.FFPROBE_PATH).toBeUndefined();
+  });
+
+  it('accepts a Redis URL and an ffprobe path', () => {
+    const env = validateEnv({
+      ...base,
+      REDIS_URL: 'redis://localhost:6379',
+      FFPROBE_PATH: '/usr/bin/ffprobe',
+    });
+    expect(env.REDIS_URL).toBe('redis://localhost:6379');
+    expect(env.FFPROBE_PATH).toBe('/usr/bin/ffprobe');
+  });
+
+  it('rejects a malformed REDIS_URL', () => {
+    expect(() => validateEnv({ ...base, REDIS_URL: 'localhost:6379' })).toThrow(
+      /REDIS_URL/,
+    );
+  });
+
   it('enables Swagger outside production and disables it in production by default', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://redis:6379',
+      FFPROBE_PATH: 'ffprobe',
+    };
     expect(validateEnv(base).SWAGGER_ENABLED).toBe(true);
+    expect(validateEnv(prod).SWAGGER_ENABLED).toBe(false);
     expect(
-      validateEnv({ ...base, NODE_ENV: 'production' }).SWAGGER_ENABLED,
-    ).toBe(false);
-    expect(
-      validateEnv({ ...base, NODE_ENV: 'production', SWAGGER_ENABLED: 'true' })
-        .SWAGGER_ENABLED,
+      validateEnv({ ...prod, SWAGGER_ENABLED: 'true' }).SWAGGER_ENABLED,
     ).toBe(true);
   });
 
@@ -65,7 +90,30 @@ describe('validateEnv', () => {
   });
 
   describe('in production', () => {
-    const prod = { ...base, NODE_ENV: 'production' };
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      REDIS_URL: 'redis://redis:6379',
+      FFPROBE_PATH: 'ffprobe',
+    };
+
+    it('requires REDIS_URL (shared rate limit counters)', () => {
+      expect(() => validateEnv({ ...prod, REDIS_URL: undefined })).toThrow(
+        /REDIS_URL/,
+      );
+      expect(() => validateEnv({ ...prod, REDIS_URL: '' })).toThrow(
+        /REDIS_URL/,
+      );
+    });
+
+    it('requires FFPROBE_PATH (voice duration verification)', () => {
+      expect(() => validateEnv({ ...prod, FFPROBE_PATH: undefined })).toThrow(
+        /FFPROBE_PATH/,
+      );
+      expect(() => validateEnv({ ...prod, FFPROBE_PATH: '' })).toThrow(
+        /FFPROBE_PATH/,
+      );
+    });
 
     it('accepts real secrets', () => {
       expect(() => validateEnv(prod)).not.toThrow();
