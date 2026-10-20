@@ -1,0 +1,156 @@
+import { OWNERS } from "./constants";
+import type { Db } from "./types";
+
+export function seed(): Db {
+  const P = OWNERS.picker;
+  const S = OWNERS.person;
+  return {
+    seq: 100,
+    cars: [
+      {
+        id: "c1",
+        title: "Geely Monjaro, 2024",
+        vin: "LVSHCAMB5RE077734",
+        owner: P,
+        step: 9,
+        created: "02.08.2026",
+        updated: "26.09",
+        reqId: "r0",
+        files: {
+          2: [["file", "Платёжное поручение.pdf"]],
+          3: [["photo", "Фото · 4"]],
+          4: [["video", "Видео погрузки"]],
+          6: [["photo", "Фото · 6"]],
+          7: [["photo", "Фото · 2"]],
+          8: [["file", "Транзитная декларация.pdf"]],
+        },
+      },
+      {
+        id: "c2",
+        title: "Chery Tiggo 8 Pro, 2023",
+        vin: "LVVDB21B5PD055908",
+        owner: P,
+        step: 2,
+        created: "20.09.2026",
+        updated: "24.09",
+        files: { 2: [["file", "Платёжное поручение.pdf"]] },
+      },
+      {
+        id: "c3",
+        title: "Zeekr 001, 2025",
+        vin: "L6T79ENE4SA001428",
+        owner: S,
+        step: 5,
+        created: "01.09.2026",
+        updated: "25.09",
+        files: {
+          2: [["file", "Чек об оплате.pdf"]],
+          3: [["photo", "Фото · 3"]],
+          4: [["video", "Видео погрузки"]],
+        },
+      },
+      {
+        id: "c4",
+        title: "Li Auto L9, 2024",
+        vin: "LW433B129R1003517",
+        owner: { type: "picker", name: "ООО «Восток Авто»" },
+        step: 13,
+        created: "10.06.2026",
+        updated: "20.09",
+        files: { 2: [["file", "Платёжка.pdf"]], 13: [["photo", "Фото · 5"]] },
+      },
+    ],
+    requests: [
+      {
+        id: "r1",
+        model: "Haval Jolion",
+        year: "2023",
+        budget: "1 600 000 ₽",
+        comment: "Нужен именно 2023 год, механика не нужна.",
+        owner: P,
+        status: "dialog",
+        created: "18.09.2026",
+        messages: [
+          { who: "client", time: "18.09, 10:12", text: "Ищем Haval Jolion 2023 для клиента, бюджет до 1,6 млн.", files: [] },
+          {
+            who: "manager",
+            time: "18.09, 12:40",
+            text: "Нашли два варианта, скидываю фото и ссылки.",
+            files: [
+              ["photo", "Вариант 1 · фото · 5"],
+              ["photo", "Вариант 2 · фото · 4"],
+              ["link", "Ссылки на объявления · 2"],
+            ],
+          },
+          { who: "client", time: "18.09, 13:05", text: "Нужен именно 2023 год, механика не нужна.", files: [] },
+          {
+            who: "manager",
+            time: "18.09, 15:20",
+            text: "Второй вариант — 2023, робот, пробег 18 000 км. Берём?",
+            files: [],
+          },
+        ],
+      },
+      {
+        id: "r2",
+        model: "Li Auto L7",
+        year: "2024",
+        budget: "3 900 000 ₽",
+        comment: "Pro или Max, светлый салон.",
+        owner: P,
+        status: "new",
+        created: "25.09.2026",
+        messages: [{ who: "client", time: "25.09, 16:40", text: "Pro или Max, светлый салон.", files: [] }],
+      },
+      {
+        id: "r3",
+        model: "Toyota RAV4",
+        year: "2024",
+        budget: "3 200 000 ₽",
+        comment: "Гибрид, цвет любой кроме красного.",
+        owner: S,
+        status: "new",
+        created: "26.09.2026",
+        messages: [
+          { who: "client", time: "26.09, 09:14", text: "Интересует гибрид, цвет любой кроме красного.", files: [] },
+        ],
+      },
+      {
+        id: "r4",
+        model: "BYD Song Plus",
+        year: "2024",
+        budget: "2 700 000 ₽",
+        comment: "Полный привод.",
+        owner: { type: "picker", name: "ООО «Восток Авто»" },
+        status: "dialog",
+        created: "22.09.2026",
+        messages: [
+          { who: "client", time: "22.09, 10:00", text: "Нужен полный привод, бюджет до 2,7 млн.", files: [] },
+          { who: "manager", time: "23.09, 14:10", text: "Есть два варианта, фото ниже.", files: [["photo", "Фото · 7"]] },
+          { who: "client", time: "26.09, 11:02", text: "Какой пробег у второго варианта?", files: [] },
+        ],
+      },
+      {
+        id: "r0",
+        model: "Geely Monjaro",
+        year: "2024",
+        budget: "3 100 000 ₽",
+        comment: "Чёрный, полный привод.",
+        owner: P,
+        status: "approved",
+        carId: "c1",
+        created: "18.07.2026",
+        messages: [
+          { who: "client", time: "18.07, 11:00", text: "Нужен Monjaro 2024, чёрный, полный привод.", files: [] },
+          {
+            who: "manager",
+            time: "19.07, 09:30",
+            text: "Нашли, фото и отчёт по машине во вложении.",
+            files: [["photo", "Фото · 8"]],
+          },
+          { who: "client", time: "19.07, 10:05", text: "Берём.", files: [] },
+        ],
+      },
+    ],
+  };
+}

@@ -1,0 +1,86 @@
+import type { Owner, Role, StepKind } from "./types";
+
+export const FULL = [
+  "Ожидает оплату",
+  "Получена оплата",
+  "Выкуплен, ожидает погрузки у продавца",
+  "В транспортной компании в Китае",
+  "В пути по Китаю",
+  "Прибыла в конечную точку, экспортные документы",
+  "Отправка в Россию",
+  "Прибыла на территорию РФ",
+  "Прибыла на СВХ, ожидает тамож. оформление",
+  "Декларация подана",
+  "Машина выпущена",
+  "Получение ЭПТС и СБКТС",
+  "Готова к выдаче (СБКТС, ЭПТС)",
+];
+
+export const SHORT = [
+  "Ожидает оплату",
+  "Получена оплата",
+  "Выкуплен",
+  "В ТК в Китае",
+  "В пути по Китаю",
+  "В конечной точке",
+  "Отправка в Россию",
+  "Прибыла в РФ",
+  "Прибыла на СВХ",
+  "Декларация подана",
+  "Машина выпущена",
+  "Получение ЭПТС и СБКТС",
+  "Готова к выдаче",
+];
+
+export const KIND: StepKind[] = [
+  "none",
+  "file",
+  "photo",
+  "video",
+  "none",
+  "photo",
+  "photo",
+  "file",
+  "photo",
+  "number",
+  "none",
+  "photo",
+  "photo",
+];
+
+export const KIND_WORD: Record<Exclude<StepKind, "none">, string> = {
+  photo: "фото",
+  file: "файл",
+  video: "видео",
+  number: "номер",
+};
+
+export const KIND_LABEL: Record<Exclude<StepKind, "none">, string> = {
+  photo: "Фото",
+  file: "Файл",
+  video: "Видео",
+  number: "Номер декларации",
+};
+
+export const WHO_SEES: Record<StepKind, string> = {
+  none: "Шаг отмечается без вложения.",
+  file: "Менеджер прикладывает документ — вы открываете его в карточке.",
+  photo: "Менеджер прикладывает фото — вы видите машину своими глазами.",
+  video: "Менеджер прикладывает видео погрузки.",
+  number: "Менеджер указывает номер декларации.",
+};
+
+export const OWNERS: Record<Exclude<Role, "super">, Owner> = {
+  picker: { type: "picker", name: "ООО «АвтоПривоз Плюс»" },
+  person: { type: "person", name: "Смирнов А. В." },
+};
+
+/** Подпись и цвет подложки карточки галереи на лендинге. */
+export const GALLERY: [string, string, string][] = [
+  ["Geely Monjaro", "2024", "#e6e8ec"],
+  ["Zeekr 001", "2025", "#d7dbe1"],
+  ["Li Auto L9", "2024", "#b9bfc8"],
+  ["Chery Tiggo 8 Pro", "2023", "#e6e8ec"],
+  ["Haval Jolion", "2023", "#d7dbe1"],
+  ["BYD Song Plus", "2024", "#aeb5bf"],
+];

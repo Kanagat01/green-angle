@@ -1,0 +1,5 @@
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
+  # зависимость sass для режима `sass --watch`; Next.js вызывает Sass через API, нативная сборка не нужна
+  '@parcel/watcher': false
