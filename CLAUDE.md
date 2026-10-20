@@ -61,6 +61,7 @@
 ## Структура репозитория
 
 - `backend/` — NestJS API (pnpm, свой `package.json` и lock-файл).
-- `frontend/` — Next.js; **пока не создавать**, начнём после получения макета.
+- `frontend/` — Next.js (pnpm, SCSS). Дизайн берётся **только** из `huatech-handoff/` (презентация PDF — лишь иллюстрация, из неё ничего не переносить). Сначала точный перенос макета без бэкенда, потом связка с API.
+- `huatech-handoff/` — макет (прототип `prototype/index.html`, `design-system/`): только читать, не менять.
 - Корень: `PLAN.md`, `CLAUDE.md`, `docker-compose.yml`, `.gitignore`, `.github/`.
 - Команды pnpm запускать из `backend/` (или `frontend/`), не из корня.
