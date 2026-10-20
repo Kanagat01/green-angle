@@ -22,7 +22,7 @@ backend/                  NestJS API (pnpm, свой package.json и lock-фай
   src/                    модули: auth, users, clients, vehicles, requests, messages,
                           storage, uploads, realtime, rate-limit, health, config
   test/                   e2e-тесты на реальных Postgres и S3
-frontend/                 Next.js — появится после получения макета
+frontend/                 Next.js — кабинет и лендинг (пока без связки с API)
 deploy/                   Caddyfile, скрипты резервного копирования и восстановления
 docker-compose.yml        разработка: Postgres + MinIO + миграции + API
 docker-compose.prod.yml   боевой запуск: Caddy + API + Postgres + миграции + бэкапы
