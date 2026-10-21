@@ -43,7 +43,10 @@ describe('System messages in the dialog (e2e)', () => {
       title: `System ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    return res.json<{ id: string }>().id;
+    const id = res.json<{ id: string }>().id;
+    // Считаем только то, что пишется по ходу дела; первое сообщение заявки — в request-first-message
+    await prisma.message.deleteMany({ where: { requestId: id } });
+    return id;
   }
   const messages = async (id: string, token = tokens.broker) =>
     (await call('GET', `/requests/${id}/messages`, token)).json<{

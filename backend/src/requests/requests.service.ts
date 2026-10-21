@@ -7,13 +7,14 @@ import {
 import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { RequestStatus } from '../generated/prisma/client.js';
+import { MessageType, RequestStatus } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { initialSteps, stepTitle } from '../vehicles/steps.catalog.js';
 import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
+import { firstMessageText } from './first-message.js';
 import {
   ApproveRequestResultDto,
   RequestListDto,
@@ -48,6 +49,8 @@ export class RequestsService {
     // ADMIN не привязан к клиенту и заявки не создаёт
     if (!clientId) throw new ForbiddenException();
 
+    // Диалог начинается с самой заявки: первое сообщение клиента пишется вместе с ней,
+    // поэтому в очереди менеджера у заявки сразу есть последнее сообщение и «ждёт ответа»
     const created = await this.prisma.request.create({
       data: {
         clientId,
@@ -56,6 +59,13 @@ export class RequestsService {
         yearFrom: dto.yearFrom,
         budget: dto.budget,
         comment: dto.comment,
+        messages: {
+          create: {
+            authorId: user.id,
+            type: MessageType.TEXT,
+            text: firstMessageText(dto),
+          },
+        },
       },
       include,
     });

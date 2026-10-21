@@ -68,7 +68,10 @@ describe('Request dialog (e2e)', () => {
       title: `Dialog ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    return res.json<RequestView>().id;
+    const id = res.json<RequestView>().id;
+    // Здесь проверяется запись и чтение диалога с пустого листа; первое сообщение заявки — в request-first-message
+    await prisma.message.deleteMany({ where: { requestId: id } });
+    return id;
   }
 
   const post = (reqId: string, token: string | null, payload: object) =>

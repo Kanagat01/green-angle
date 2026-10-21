@@ -37,7 +37,10 @@ describe('Request rejection (e2e)', () => {
       title: `Reject ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    return res.json<RequestView>().id;
+    const id = res.json<RequestView>().id;
+    // Здесь проверяется отклонение, а не первое сообщение заявки (оно в request-first-message)
+    await prisma.message.deleteMany({ where: { requestId: id } });
+    return id;
   }
   const reject = (id: string, token: string | null = tokens.admin) =>
     call('POST', `/admin/requests/${id}/reject`, token);

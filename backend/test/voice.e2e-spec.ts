@@ -76,7 +76,10 @@ describe('Voice messages (e2e)', () => {
       title: `Voice ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    return res.json<RequestView>().id;
+    const id = res.json<RequestView>().id;
+    // Здесь проверяются голосовые; первое сообщение заявки — в request-first-message
+    await prisma.message.deleteMany({ where: { requestId: id } });
+    return id;
   }
 
   const voiceUrl = (reqId: string, token: string | null, payload: object) =>

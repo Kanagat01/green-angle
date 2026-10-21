@@ -57,7 +57,10 @@ describe('Request approval (e2e)', () => {
       yearFrom: 2023,
     });
     expect(res.statusCode).toBe(201);
-    return res.json<RequestView>().id;
+    const id = res.json<RequestView>().id;
+    // Этот набор проверяет одобрение и диалог, а не первое сообщение заявки (оно в request-first-message)
+    await prisma.message.deleteMany({ where: { requestId: id } });
+    return id;
   }
   const approve = (id: string, token: string | null = tokens.admin) =>
     call('POST', `/admin/requests/${id}/approve`, token);
