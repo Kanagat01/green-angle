@@ -166,18 +166,23 @@ model Attachment {
 }
 
 model Request {
-  id          String        @id @default(uuid()) @db.Uuid
-  clientId    String        @db.Uuid
-  createdById String        @db.Uuid
+  id            String        @id @default(uuid()) @db.Uuid
+  clientId      String        @db.Uuid
+  createdById   String        @db.Uuid
   // «Chery Tiggo 8 Pro»
-  title       String
-  yearFrom    Int?
-  budget      Decimal?      @db.Decimal(14, 2)
-  comment     String?
-  status      RequestStatus @default(NEW)
+  title         String
+  yearFrom      Int?
+  budget        Decimal?      @db.Decimal(14, 2)
+  comment       String?
+  status        RequestStatus @default(NEW)
   // проставляется при одобрении
-  vehicleId   String?       @unique @db.Uuid
-  createdAt   DateTime      @default(now())
+  vehicleId     String?       @unique @db.Uuid
+  createdAt     DateTime      @default(now())
+  // Производные поля очереди; их ведут триггеры БД (см. миграцию request_activity), не код приложения
+  // время последнего сообщения диалога
+  lastMessageAt DateTime?
+  // «ждёт ответа»: заявка открыта и последнее сообщение написал клиент (не менеджер и не система)
+  awaitingReply Boolean       @default(false)
 
   client    Client    @relation(fields: [clientId], references: [id])
   createdBy User      @relation(fields: [createdById], references: [id])
@@ -186,6 +191,7 @@ model Request {
 
   @@index([clientId, status])
   @@index([status, createdAt])
+  @@index([awaitingReply, lastMessageAt])
 }
 
 model Message {

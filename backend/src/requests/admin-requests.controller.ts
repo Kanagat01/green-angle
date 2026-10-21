@@ -22,6 +22,7 @@ import { Role } from '../generated/prisma/client.js';
 import { AdminListRequestsQueryDto } from './dto/admin-list-requests-query.dto.js';
 import {
   ApproveRequestResultDto,
+  RequestCountsDto,
   RequestListDto,
   RequestViewDto,
 } from './dto/request-views.dto.js';
@@ -42,6 +43,13 @@ export class AdminRequestsController {
     @Query() query: AdminListRequestsQueryDto,
   ) {
     return this.requests.list(user, query);
+  }
+
+  /** Счётчики для вкладок очереди: ждут ответа / все. Не зависят от фильтров списка. */
+  @Get('counts')
+  @ApiOkResponse({ type: RequestCountsDto })
+  counts() {
+    return this.requests.counts();
   }
 
   /**

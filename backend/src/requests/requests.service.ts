@@ -7,7 +7,11 @@ import {
 import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { MessageType, RequestStatus } from '../generated/prisma/client.js';
+import {
+  MessageType,
+  RequestStatus,
+  Role,
+} from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
@@ -17,6 +21,8 @@ import { CreateRequestDto } from './dto/create-request.dto.js';
 import { firstMessageText } from './first-message.js';
 import {
   ApproveRequestResultDto,
+  LastMessageDto,
+  RequestCountsDto,
   RequestListDto,
   RequestViewDto,
 } from './dto/request-views.dto.js';
@@ -24,9 +30,14 @@ import {
 export interface RequestFilters {
   status?: RequestStatus;
   clientId?: string;
+  /** Только ждущие ответа (true) или только остальные (false) */
+  awaiting?: boolean;
   limit: number;
   offset: number;
 }
+
+/** Сколько символов текста последнего сообщения отдаётся в списках */
+const LAST_MESSAGE_PREVIEW = 200;
 
 const include = {
   client: { select: { id: true, type: true, name: true } },
@@ -77,7 +88,7 @@ export class RequestsService {
       reason: 'CREATED',
       at: created.createdAt.toISOString(),
     });
-    return toView(created, 0);
+    return this.get(user, created.id);
   }
 
   /**
@@ -88,27 +99,85 @@ export class RequestsService {
     const where: Prisma.RequestWhereInput = {
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.clientId ? { clientId: filters.clientId } : {}),
+      ...(filters.awaiting === undefined
+        ? {}
+        : { awaitingReply: filters.awaiting }),
       ...clientScope(user),
     };
+    // Очередь менеджера: ждущие ответа сверху, дальше по свежести переписки.
+    // Клиенту удобнее хронология: новые заявки первыми.
+    const orderBy: Prisma.RequestOrderByWithRelationInput[] =
+      user.role === Role.ADMIN
+        ? [
+            { awaitingReply: 'desc' },
+            { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+            { createdAt: 'desc' },
+            { id: 'asc' },
+          ]
+        : [{ createdAt: 'desc' }, { id: 'asc' }];
 
     const [items, total] = await Promise.all([
       this.prisma.request.findMany({
         where,
         include,
-        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        orderBy,
         take: filters.limit,
         skip: filters.offset,
       }),
       this.prisma.request.count({ where }),
     ]);
-    const unread = await this.messages.unreadByRequest(
-      user,
-      items.map((r) => r.id),
-    );
+    const ids = items.map((r) => r.id);
+    const [unread, last] = await Promise.all([
+      this.messages.unreadByRequest(user, ids),
+      this.lastMessages(ids),
+    ]);
     return {
-      items: items.map((r) => toView(r, unread.get(r.id) ?? 0)),
+      items: items.map((r) =>
+        toView(r, unread.get(r.id) ?? 0, last.get(r.id) ?? null),
+      ),
       total,
     };
+  }
+
+  /** Счётчики очереди для вкладок «Ждут ответа / Все» и бейджа в меню. */
+  async counts(): Promise<RequestCountsDto> {
+    const [awaitingReply, total] = await Promise.all([
+      this.prisma.request.count({ where: { awaitingReply: true } }),
+      this.prisma.request.count(),
+    ]);
+    return { awaitingReply, total };
+  }
+
+  /** Последнее сообщение каждой заявки: requestId → превью (заявки без сообщений не включаются). */
+  private async lastMessages(
+    requestIds: string[],
+  ): Promise<Map<string, LastMessageDto>> {
+    if (requestIds.length === 0) return new Map();
+    const rows = await this.prisma.message.findMany({
+      where: { requestId: { in: requestIds } },
+      distinct: ['requestId'],
+      orderBy: [{ requestId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      include: {
+        author: { select: { role: true } },
+        _count: { select: { attachments: true, sharedAttachments: true } },
+      },
+    });
+    return new Map(
+      rows.map((m) => [
+        m.requestId,
+        {
+          type: m.type,
+          text: m.text === null ? null : m.text.slice(0, LAST_MESSAGE_PREVIEW),
+          hasAttachments: m._count.attachments + m._count.sharedAttachments > 0,
+          author: m.author
+            ? m.author.role === Role.ADMIN
+              ? 'MANAGER'
+              : 'CLIENT'
+            : 'SYSTEM',
+          createdAt: m.createdAt,
+        },
+      ]),
+    );
   }
 
   async get(user: AuthUser, id: string): Promise<RequestViewDto> {
@@ -118,8 +187,11 @@ export class RequestsService {
     });
     // 404, а не 403: не раскрываем существование чужих заявок
     if (!request) throw new NotFoundException('Request not found');
-    const unread = await this.messages.unreadByRequest(user, [id]);
-    return toView(request, unread.get(id) ?? 0);
+    const [unread, last] = await Promise.all([
+      this.messages.unreadByRequest(user, [id]),
+      this.lastMessages([id]),
+    ]);
+    return toView(request, unread.get(id) ?? 0, last.get(id) ?? null);
   }
 
   /**
@@ -259,7 +331,11 @@ export class RequestsService {
   }
 }
 
-function toView(r: RequestWithClient, unreadCount: number): RequestViewDto {
+function toView(
+  r: RequestWithClient,
+  unreadCount: number,
+  lastMessage: LastMessageDto | null,
+): RequestViewDto {
   return {
     id: r.id,
     title: r.title,
@@ -270,6 +346,8 @@ function toView(r: RequestWithClient, unreadCount: number): RequestViewDto {
     vehicleId: r.vehicleId,
     client: r.client,
     unreadCount,
+    awaitingReply: r.awaitingReply,
+    lastMessage,
     createdAt: r.createdAt,
   };
 }
