@@ -5,6 +5,10 @@
 #   backup.sh once   — одна копия и выход (для cron / ручного запуска)
 #
 # Параметры подключения — стандартные переменные libpq: PGHOST, PGUSER, PGPASSWORD, PGDATABASE.
+#
+# Если задан UPLOADS_DIR (каталог с файлами клиентов, драйвер disk) и BACKUP_UPLOADS не равен false,
+# рядом с дампом базы кладётся архив uploads_<время>.tar.gz. Это полная копия: для больших объёмов
+# файлов используйте снимки диска или инкрементальные средства сервера.
 set -eu
 
 : "${PGHOST:?PGHOST is required}"
@@ -36,6 +40,20 @@ backup_once() {
     return 1
   fi
   mv "$tmp" "$out"
+
+  if [ -n "${UPLOADS_DIR:-}" ] && [ "${BACKUP_UPLOADS:-true}" != "false" ]; then
+    uploads_out="$BACKUP_DIR/uploads_$ts.tar.gz"
+    uploads_tmp="$BACKUP_DIR/.tmp_uploads_$ts.tar.gz"
+    # Архив читается и содержит каталог целиком; оборванная копия не остаётся
+    if ! tar -czf "$uploads_tmp" -C "$UPLOADS_DIR" . || ! tar -tzf "$uploads_tmp" > /dev/null; then
+      rm -f "$uploads_tmp"
+      echo "backup FAILED: uploads archive error (database dump $out is kept)" >&2
+      return 1
+    fi
+    mv "$uploads_tmp" "$uploads_out"
+    find "$BACKUP_DIR" -maxdepth 1 -name "uploads_*.tar.gz" -mtime +"$KEEP_DAYS" -delete
+    echo "backup ok: $uploads_out ($(wc -c < "$uploads_out") bytes)"
+  fi
 
   # Ротация: удаляем копии старше KEEP_DAYS суток (только готовые файлы этой базы)
   find "$BACKUP_DIR" -maxdepth 1 -name "${PGDATABASE}_*.dump" -mtime +"$KEEP_DAYS" -delete

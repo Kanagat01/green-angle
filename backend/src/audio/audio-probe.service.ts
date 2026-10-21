@@ -84,7 +84,7 @@ export class AudioProbeService implements OnModuleInit {
     }
   }
 
-  /** Скачивает объект из S3 во временный файл и измеряет длительность (секунды, дробные). */
+  /** Копирует объект из хранилища во временный файл и измеряет длительность (секунды, дробные). */
   async measureObject(key: string, mime: string): Promise<number> {
     const dir = await mkdtemp(join(tmpdir(), 'voice-'));
     try {

@@ -10,6 +10,7 @@ import {
   createFixtures,
   Fixtures,
   PASSWORD,
+  transfer,
 } from './helpers.js';
 
 interface Message {
@@ -33,12 +34,6 @@ interface RequestView {
   status: 'NEW' | 'IN_DIALOG' | 'APPROVED';
   unreadCount: number;
 }
-
-const s3Up = await fetch(process.env.S3_ENDPOINT!, {
-  signal: AbortSignal.timeout(2000),
-})
-  .then(() => true)
-  .catch(() => false);
 
 describe('Request dialog (e2e)', () => {
   let app: NestFastifyApplication;
@@ -491,8 +486,8 @@ describe('Request dialog (e2e)', () => {
     });
   });
 
-  describe.runIf(s3Up || !!process.env.CI)('attachments (real S3)', () => {
-    /** presign через API → PUT в S3 → ключ */
+  describe('attachments (real storage)', () => {
+    /** presign через API → PUT в хранилище → ключ */
     async function uploadAs(
       token: string,
       kind: string,
@@ -511,9 +506,9 @@ describe('Request dialog (e2e)', () => {
         headers: Record<string, string>;
       }>();
       s3Keys.push(t.key);
-      const put = await fetch(t.uploadUrl, {
+      const put = await transfer(app, t.uploadUrl, {
         method: 'PUT',
-        body: bytes as BodyInit,
+        body: bytes,
         headers: t.headers,
       });
       expect(put.ok).toBe(true);
@@ -542,7 +537,7 @@ describe('Request dialog (e2e)', () => {
       const list = (
         await call('GET', `/requests/${id}/messages`, tokens.admin)
       ).json<MessageList>();
-      const download = await fetch(list.items[0].attachments[0].url);
+      const download = await transfer(app, list.items[0].attachments[0].url);
       expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
     });
 

@@ -7,7 +7,10 @@ export class PresignedUploadDto {
   })
   key: string;
 
-  @ApiProperty({ description: 'URL для прямой загрузки файла в S3' })
+  @ApiProperty({
+    description:
+      'Ссылка для загрузки файла методом PUT (S3 или API; может быть относительной — разрешайте её относительно адреса API)',
+  })
   uploadUrl: string;
 
   @ApiProperty({ enum: ['PUT'] })

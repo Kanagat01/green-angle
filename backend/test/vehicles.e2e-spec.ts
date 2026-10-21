@@ -7,6 +7,7 @@ import {
   createFixtures,
   Fixtures,
   randomVin,
+  transfer,
 } from './helpers.js';
 
 interface Step {
@@ -33,12 +34,6 @@ interface List {
   items: Card[];
   total: number;
 }
-
-const s3Up = await fetch(process.env.S3_ENDPOINT!, {
-  signal: AbortSignal.timeout(2000),
-})
-  .then(() => true)
-  .catch(() => false);
 
 describe('Vehicles and statuses (e2e)', () => {
   let app: NestFastifyApplication;
@@ -578,8 +573,8 @@ describe('Vehicles and statuses (e2e)', () => {
     });
   });
 
-  describe.runIf(s3Up || !!process.env.CI)('step attachments (real S3)', () => {
-    /** presign через API → PUT в S3 → ключ */
+  describe('step attachments (real storage)', () => {
+    /** presign через API → PUT в хранилище → ключ */
     async function uploadAs(
       token: string,
       kind: string,
@@ -598,9 +593,9 @@ describe('Vehicles and statuses (e2e)', () => {
         headers: Record<string, string>;
       }>();
       s3Keys.push(t.key);
-      const put = await fetch(t.uploadUrl, {
+      const put = await transfer(app, t.uploadUrl, {
         method: 'PUT',
-        body: bytes as BodyInit,
+        body: bytes,
         headers: t.headers,
       });
       expect(put.ok).toBe(true);
@@ -634,7 +629,7 @@ describe('Vehicles and statuses (e2e)', () => {
       ).json<Card>();
       expect(owner.steps[2].attachments).toHaveLength(1);
       expect(owner.steps[1].attachments).toHaveLength(0);
-      const download = await fetch(owner.steps[2].attachments[0].url);
+      const download = await transfer(app, owner.steps[2].attachments[0].url);
       expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
 
       // чужой клиент не видит даже саму машину

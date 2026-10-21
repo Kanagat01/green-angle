@@ -17,6 +17,12 @@ generated/
 !.env.example
 !.env.*.example
 
+# исходные материалы заказчика (ТЗ и макет), в репозиторий не входят
+ТЗ/
+
+# загруженные файлы при локальном запуске (STORAGE_DRIVER=disk)
+data/
+
 # резервные копии БД (docker-compose.prod.yml)
 backups/
 

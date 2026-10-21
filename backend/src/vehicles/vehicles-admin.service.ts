@@ -203,7 +203,7 @@ export class VehiclesAdminService {
     return this.vehicles.getCard(user, id);
   }
 
-  /** Прикрепляет к шагу файл, ранее загруженный в S3 по presigned URL. */
+  /** Прикрепляет к шагу файл, ранее загруженный в хранилище по ссылке из /uploads/presign. */
   async addStepAttachment(
     user: AuthUser,
     vehicleId: string,

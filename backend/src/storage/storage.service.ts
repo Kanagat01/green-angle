@@ -1,24 +1,10 @@
-import {
-  CreateBucketCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-  HeadBucketCommand,
-  HeadObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import type { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { AttachmentKind } from '../generated/prisma/client.js';
 import { validateUpload } from './upload-rules.js';
 
 export interface UploadTicket {
   key: string;
+  /** Куда клиент отправляет файл: абсолютный адрес S3 или адрес API (может быть относительным) */
   uploadUrl: string;
   method: 'PUT';
   /** Заголовки, которые клиент обязан отправить с PUT (подписаны в URL) */
@@ -31,71 +17,19 @@ export interface StoredObject {
   contentType: string;
 }
 
-@Injectable()
-export class StorageService implements OnModuleInit {
-  private readonly logger = new Logger(StorageService.name);
-  private readonly bucket: string;
-  private readonly putTtl: number;
-  private readonly getTtl: number;
-  /** Клиент для операций сервера (внутренний адрес S3) */
-  private readonly internal: S3Client;
-  /** Клиент только для подписи URL (адрес, доступный браузеру) */
-  private readonly signer: S3Client;
-
-  constructor(config: ConfigService) {
-    this.bucket = config.getOrThrow<string>('S3_BUCKET');
-    this.putTtl = config.getOrThrow<number>('S3_PRESIGN_PUT_TTL_SEC');
-    this.getTtl = config.getOrThrow<number>('S3_PRESIGN_GET_TTL_SEC');
-
-    const endpoint = config.getOrThrow<string>('S3_ENDPOINT');
-    const base = {
-      region: config.getOrThrow<string>('S3_REGION'),
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: config.getOrThrow<string>('S3_ACCESS_KEY'),
-        secretAccessKey: config.getOrThrow<string>('S3_SECRET_KEY'),
-      },
-      // Без автоматических checksum-параметров в presigned URL (ломают прямую загрузку из браузера)
-      requestChecksumCalculation: 'WHEN_REQUIRED' as const,
-      responseChecksumValidation: 'WHEN_REQUIRED' as const,
-    };
-    this.internal = new S3Client({ ...base, endpoint });
-    this.signer = new S3Client({
-      ...base,
-      endpoint: config.get<string>('S3_PUBLIC_ENDPOINT') ?? endpoint,
-    });
-  }
-
-  /** Создаёт бакет, если его нет. Недоступность S3 не должна ронять API при старте. */
-  async onModuleInit() {
-    try {
-      await this.internal.send(new HeadBucketCommand({ Bucket: this.bucket }));
-    } catch (err) {
-      if (!isNotFound(err)) {
-        this.logger.warn(
-          `S3 is not reachable, bucket check skipped: ${errorMessage(err)}`,
-        );
-        return;
-      }
-      try {
-        await this.internal.send(
-          new CreateBucketCommand({ Bucket: this.bucket }),
-        );
-        this.logger.log(`Bucket "${this.bucket}" created`);
-      } catch (createErr) {
-        this.logger.warn(
-          `Cannot create bucket "${this.bucket}": ${errorMessage(createErr)}`,
-        );
-      }
-    }
-  }
-
+/**
+ * Хранилище файлов. Остальной код (вложения, сообщения, проверка голосовых) знает только этот
+ * контракт, поэтому драйвер (диск или S3) меняется переменной `STORAGE_DRIVER` без правок в
+ * клиентах: в обоих случаях presign → PUT по выданной ссылке → регистрация ключа → скачивание
+ * по короткоживущей ссылке.
+ */
+export abstract class StorageService {
   /** Префикс ключей, которые пользователь вправе использовать для данного вида вложений. */
   keyPrefix(kind: AttachmentKind, userId: string): string {
     return `${kind.toLowerCase()}/${userId}/`;
   }
 
-  /** Проверяет mime/размер и выдаёт presigned PUT. Подпись фиксирует Content-Type и Content-Length. */
+  /** Проверяет mime/размер и выдаёт ссылку для загрузки; подпись фиксирует Content-Type и размер. */
   async createUploadTicket(
     userId: string,
     kind: AttachmentKind,
@@ -104,86 +38,27 @@ export class StorageService implements OnModuleInit {
   ): Promise<UploadTicket> {
     const { mime: contentType, ext } = validateUpload(kind, mime, size);
     const key = `${this.keyPrefix(kind, userId)}${randomUUID()}.${ext}`;
-
-    const uploadUrl = await getSignedUrl(
-      this.signer,
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        ContentType: contentType,
-        ContentLength: size,
-      }),
-      {
-        expiresIn: this.putTtl,
-        signableHeaders: new Set(['content-type', 'content-length']),
-      },
-    );
-
-    return {
-      key,
-      uploadUrl,
-      method: 'PUT',
-      headers: { 'Content-Type': contentType },
-      expiresIn: this.putTtl,
-    };
+    return this.signUpload(key, contentType, size);
   }
+
+  /** Подписанная ссылка на загрузку объекта `key` (драйвер-специфичная часть). */
+  protected abstract signUpload(
+    key: string,
+    contentType: string,
+    size: number,
+  ): Promise<UploadTicket>;
 
   /** Короткоживущая ссылка на скачивание/воспроизведение. */
-  presignDownload(key: string): Promise<string> {
-    return getSignedUrl(
-      this.signer,
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-      { expiresIn: this.getTtl },
-    );
-  }
+  abstract presignDownload(key: string): Promise<string>;
 
-  /** Скачивает объект в локальный файл (потоком, без загрузки целиком в память). */
-  async downloadToFile(key: string, filePath: string): Promise<void> {
-    const res = await this.internal.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
-    if (!res.Body) throw new Error(`Object ${key} has no body`);
-    await pipeline(res.Body as Readable, createWriteStream(filePath));
-  }
+  /** Копирует объект в локальный файл (потоком, без загрузки целиком в память). */
+  abstract downloadToFile(key: string, filePath: string): Promise<void>;
 
-  /** Проверка доступности бакета (для readiness). Бросает ошибку, если S3 недоступен. */
-  async ping(): Promise<void> {
-    await this.internal.send(new HeadBucketCommand({ Bucket: this.bucket }));
-  }
+  /** Проверка доступности хранилища (для readiness). Бросает ошибку, если недоступно. */
+  abstract ping(): Promise<void>;
 
-  async delete(key: string): Promise<void> {
-    await this.internal.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
-  }
+  abstract delete(key: string): Promise<void>;
 
   /** Метаданные загруженного объекта или null, если объекта нет. */
-  async head(key: string): Promise<StoredObject | null> {
-    try {
-      const res = await this.internal.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
-      );
-      return {
-        size: res.ContentLength ?? 0,
-        contentType: res.ContentType ?? '',
-      };
-    } catch (err) {
-      if (isNotFound(err)) return null;
-      throw err;
-    }
-  }
-}
-
-function isNotFound(err: unknown): boolean {
-  const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
-  return (
-    e?.name === 'NotFound' ||
-    e?.name === 'NoSuchKey' ||
-    e?.name === 'NoSuchBucket' ||
-    e?.$metadata?.httpStatusCode === 404
-  );
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  abstract head(key: string): Promise<StoredObject | null>;
 }

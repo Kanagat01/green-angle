@@ -31,6 +31,8 @@ jobs:
       DATABASE_URL: postgresql://green:green@localhost:5432/green_angle?schema=public
       JWT_ACCESS_SECRET: ci-access-secret-1234567890
       JWT_REFRESH_SECRET: ci-refresh-secret-1234567890
+      # файлы по умолчанию на диске (временный каталог тестов); S3 проверяется отдельным шагом ниже
+      FILES_SIGNING_SECRET: ci-files-secret-1234567890
       S3_ENDPOINT: http://localhost:9000
       S3_BUCKET: green-angle
       S3_ACCESS_KEY: minio
@@ -55,6 +57,12 @@ jobs:
       - run: pnpm build
       - run: pnpm test
       - run: pnpm test:e2e
+      # Тот же контракт хранилища на драйвере S3: возврат с диска на S3 не должен ломаться незаметно
+      - name: Storage contract on the S3 driver
+        run: >-
+          STORAGE_DRIVER=s3 pnpm exec vitest run --config ./vitest.config.e2e.ts
+          test/storage.e2e-spec.ts test/uploads.e2e-spec.ts test/vehicles.e2e-spec.ts
+          test/messages.e2e-spec.ts test/voice.e2e-spec.ts
 
   # Боевые образы должны собираться (иначе ошибка вскроется только при деплое)
   docker:

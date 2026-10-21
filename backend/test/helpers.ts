@@ -38,6 +38,39 @@ export async function createApp(
   return app;
 }
 
+/**
+ * Выполняет запрос по ссылке из API (загрузка/скачивание файла). Абсолютные ссылки (S3, или
+ * драйвер disk с FILES_PUBLIC_URL) идут через fetch, относительные — прямо в приложение.
+ */
+export async function transfer(
+  app: NestFastifyApplication,
+  url: string,
+  init: {
+    method?: 'GET' | 'PUT';
+    body?: Uint8Array;
+    headers?: Record<string, string>;
+  } = {},
+): Promise<Response> {
+  if (/^https?:\/\//.test(url)) {
+    return fetch(url, {
+      method: init.method ?? 'GET',
+      body: init.body as BodyInit | undefined,
+      headers: init.headers,
+    });
+  }
+  const res = await app.inject({
+    method: init.method ?? 'GET',
+    url,
+    headers: init.headers,
+    payload: init.body ? Buffer.from(init.body) : undefined,
+  });
+  const noBody = res.statusCode === 204 || res.statusCode === 304;
+  return new Response(noBody ? null : new Uint8Array(res.rawPayload), {
+    status: res.statusCode,
+    headers: res.headers as Record<string, string>,
+  });
+}
+
 export interface Fixtures {
   admin: { id: string; email: string };
   broker: { id: string; email: string; clientId: string; vehicleId: string };

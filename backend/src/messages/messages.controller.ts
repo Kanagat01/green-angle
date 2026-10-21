@@ -66,8 +66,8 @@ export class MessagesController {
   }
 
   /**
-   * Шаг 1 отправки голосового: получить presigned PUT для аудиофайла. Дальше клиент грузит файл
-   * напрямую в S3 и создаёт сообщение `POST messages {type:"VOICE", attachmentKey, durationSec}`.
+   * Шаг 1 отправки голосового: получить подписанную ссылку на загрузку аудиофайла. Дальше клиент грузит файл
+   * PUT-ом по этой ссылке и создаёт сообщение `POST messages {type:"VOICE", attachmentKey, durationSec}`.
    */
   @Post('voice-upload-url')
   @HttpCode(HttpStatus.OK)

@@ -16,15 +16,10 @@ import {
   Fixtures,
   login,
   randomVin,
+  transfer,
 } from './helpers.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const s3Up = await fetch(process.env.S3_ENDPOINT!, {
-  signal: AbortSignal.timeout(2000),
-})
-  .then(() => true)
-  .catch(() => false);
 
 /** Серверные события и типы их полезной нагрузки — те же, что использует сервер. */
 interface EventMap {
@@ -301,53 +296,50 @@ describe('Realtime (e2e)', () => {
       await broker.expectNone('message.created');
     });
 
-    it.runIf(s3Up || !!process.env.CI)(
-      'delivers a voice message together with a playable audio link',
-      async () => {
-        const id = await newRequest(tokens.broker);
-        const admin = await connect(tokens.admin);
-        await admin.join(id);
+    it('delivers a voice message together with a playable audio link', async () => {
+      const id = await newRequest(tokens.broker);
+      const admin = await connect(tokens.admin);
+      await admin.join(id);
 
-        const audio = wavBuffer(15);
-        const ticketRes = await http(
-          'POST',
-          `/requests/${id}/voice-upload-url`,
-          tokens.broker,
-          { mime: 'audio/wav', size: audio.length },
-        );
-        const ticket = ticketRes.json<{
-          key: string;
-          uploadUrl: string;
-          headers: Record<string, string>;
-        }>();
-        s3Keys.push(ticket.key);
-        const put = await fetch(ticket.uploadUrl, {
-          method: 'PUT',
-          body: audio as BodyInit,
-          headers: ticket.headers,
-        });
-        expect(put.ok).toBe(true);
+      const audio = wavBuffer(15);
+      const ticketRes = await http(
+        'POST',
+        `/requests/${id}/voice-upload-url`,
+        tokens.broker,
+        { mime: 'audio/wav', size: audio.length },
+      );
+      const ticket = ticketRes.json<{
+        key: string;
+        uploadUrl: string;
+        headers: Record<string, string>;
+      }>();
+      s3Keys.push(ticket.key);
+      const put = await transfer(app, ticket.uploadUrl, {
+        method: 'PUT',
+        body: audio,
+        headers: ticket.headers,
+      });
+      expect(put.ok).toBe(true);
 
-        await http('POST', `/requests/${id}/messages`, tokens.broker, {
-          type: 'VOICE',
-          attachmentKey: ticket.key,
-          durationSec: 15,
-        });
+      await http('POST', `/requests/${id}/messages`, tokens.broker, {
+        type: 'VOICE',
+        attachmentKey: ticket.key,
+        durationSec: 15,
+      });
 
-        const { message } = await admin.waitFor('message.created');
-        expect(message).toMatchObject({
-          type: 'VOICE',
-          durationSec: 15,
-          text: null,
-        });
-        expect(message.attachments).toHaveLength(1);
-        expect(message.attachments[0].kind).toBe('AUDIO');
-        const playback = await fetch(message.attachments[0].url);
-        expect(Buffer.from(await playback.arrayBuffer()).equals(audio)).toBe(
-          true,
-        );
-      },
-    );
+      const { message } = await admin.waitFor('message.created');
+      expect(message).toMatchObject({
+        type: 'VOICE',
+        durationSec: 15,
+        text: null,
+      });
+      expect(message.attachments).toHaveLength(1);
+      expect(message.attachments[0].kind).toBe('AUDIO');
+      const playback = await transfer(app, message.attachments[0].url);
+      expect(Buffer.from(await playback.arrayBuffer()).equals(audio)).toBe(
+        true,
+      );
+    });
 
     it('sends nothing when posting fails', async () => {
       const id = await newRequest(tokens.broker);

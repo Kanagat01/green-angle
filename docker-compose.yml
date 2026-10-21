@@ -1,4 +1,6 @@
-# Окружение для разработки: API + Postgres + MinIO. Боевой запуск — docker-compose.prod.yml.
+# Окружение для разработки: API + Postgres + Redis. Файлы лежат на диске сервера (том uploads).
+# MinIO нужен только для драйвера S3 и поднимается профилем: docker compose --profile s3 up -d
+# (и STORAGE_DRIVER=s3 у API). Боевой запуск — docker-compose.prod.yml.
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,6 +28,7 @@ services:
       retries: 10
 
   minio:
+    profiles: ['s3']
     # Официальные образы minio/minio недоступны на Docker Hub — используем сборку coollabsio
     image: ghcr.io/coollabsio/minio:latest
     command: server /data --console-address ":9001"
@@ -53,7 +56,6 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-      minio: { condition: service_started }
     environment:
       # development: в этом окружении допустимы заглушки секретов (в production они запрещены)
       NODE_ENV: development
@@ -61,6 +63,11 @@ services:
       DATABASE_URL: postgresql://green:green@postgres:5432/green_angle?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-min-16}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-min-16}
+      # файлы на диске сервера (том uploads); для S3: STORAGE_DRIVER=s3 и профиль s3 у minio
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-disk}
+      FILES_SIGNING_SECRET: ${FILES_SIGNING_SECRET:-change-me-files-secret-min-16}
+      # ссылки на файлы — адрес API, который видит браузер
+      FILES_PUBLIC_URL: http://localhost:3000/api/v1
       S3_ENDPOINT: http://minio:9000
       # адрес в presigned URL — тот, который видит браузер
       S3_PUBLIC_ENDPOINT: http://localhost:9000
@@ -74,7 +81,9 @@ services:
       # фронт локально — Next.js на :3001
       CORS_ORIGINS: http://localhost:3001
     ports: ['3000:3000']
+    volumes: [uploads:/data/uploads]
 
 volumes:
   pgdata:
+  uploads:
   miniodata:

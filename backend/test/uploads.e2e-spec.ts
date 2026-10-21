@@ -63,13 +63,22 @@ describe('POST /uploads/presign (e2e)', () => {
     expect(body.headers).toEqual({ 'Content-Type': 'audio/webm' });
     expect(body.expiresIn).toBe(900);
 
-    const url = new URL(body.uploadUrl);
-    expect(url.pathname).toContain(body.key);
-    expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
-    expect(url.searchParams.get('X-Amz-Expires')).toBe('900');
-    expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain(
-      'content-type',
-    );
+    // ссылка подписана: у S3 — параметры X-Amz-*, у диска — key/exp/type/size/sig
+    const url = new URL(body.uploadUrl, 'http://localhost');
+    if (process.env.STORAGE_DRIVER === 's3') {
+      expect(url.pathname).toContain(body.key);
+      expect(url.searchParams.get('X-Amz-Signature')).toBeTruthy();
+      expect(url.searchParams.get('X-Amz-Expires')).toBe('900');
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain(
+        'content-type',
+      );
+    } else {
+      expect(url.pathname).toBe('/api/v1/files/upload');
+      expect(url.searchParams.get('key')).toBe(body.key);
+      expect(url.searchParams.get('type')).toBe('audio/webm');
+      expect(url.searchParams.get('size')).toBe('50000');
+      expect(url.searchParams.get('sig')).toBeTruthy();
+    }
   });
 
   it('issues unique keys per call', async () => {

@@ -18,6 +18,7 @@ import {
   createApp,
   createFixtures,
   Fixtures,
+  transfer,
 } from './helpers.js';
 
 interface Ticket {
@@ -48,12 +49,6 @@ interface RequestView {
   status: 'NEW' | 'IN_DIALOG' | 'APPROVED';
   unreadCount: number;
 }
-
-const s3Up = await fetch(process.env.S3_ENDPOINT!, {
-  signal: AbortSignal.timeout(2000),
-})
-  .then(() => true)
-  .catch(() => false);
 
 describe('Voice messages (e2e)', () => {
   let app: NestFastifyApplication;
@@ -209,7 +204,7 @@ describe('Voice messages (e2e)', () => {
     });
   });
 
-  describe('creating VOICE messages: validation (no S3 needed)', () => {
+  describe('creating VOICE messages: validation (no storage needed)', () => {
     const key = () => `audio/${fx.broker.id}/${randomUUID()}.webm`;
 
     it.each([
@@ -312,8 +307,8 @@ describe('Voice messages (e2e)', () => {
     });
   });
 
-  describe.runIf(s3Up || !!process.env.CI)('full flow with real S3', () => {
-    /** voice-upload-url → PUT в S3 → ключ */
+  describe('full flow with real storage', () => {
+    /** voice-upload-url → PUT в хранилище → ключ */
     async function uploadVoice(
       reqId: string,
       token: string,
@@ -324,9 +319,9 @@ describe('Voice messages (e2e)', () => {
       expect(res.statusCode).toBe(200);
       const t = res.json<Ticket>();
       s3Keys.push(t.key);
-      const put = await fetch(t.uploadUrl, {
+      const put = await transfer(app, t.uploadUrl, {
         method: 'PUT',
-        body: bytes as BodyInit,
+        body: bytes,
         headers: t.headers,
       });
       expect(put.ok).toBe(true);
@@ -374,7 +369,7 @@ describe('Voice messages (e2e)', () => {
       }>();
       expect(list.items).toHaveLength(1);
       expect(list.items[0].isMine).toBe(false);
-      const playback = await fetch(list.items[0].attachments[0].url);
+      const playback = await transfer(app, list.items[0].attachments[0].url);
       expect(playback.ok).toBe(true);
       expect(
         Buffer.from(await playback.arrayBuffer()).equals(clientAudio),

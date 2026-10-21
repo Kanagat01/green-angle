@@ -31,7 +31,10 @@ export function createFastifyAdapter(
 ): FastifyAdapter {
   return new FastifyAdapter({
     trustProxy: env.TRUST_PROXY,
+    // Лимит относится к JSON; файлы (до 500 МБ) идут потоком и ограничены правилами загрузки
     bodyLimit: MAX_BODY_BYTES,
+    // Node по умолчанию обрывает запрос, который принимается дольше 5 минут, — для видео на медленном канале мало
+    requestTimeout: 30 * 60 * 1000,
     // Стандартные строки Fastify о запросе отключены: вместо них одна строка из onResponse
     logController: new LogController({
       disableRequestLogging: true,
@@ -81,7 +84,7 @@ export async function configureApp(app: NestFastifyApplication) {
   if (origins.length > 0) {
     app.enableCors({
       origin: origins,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
       exposedHeaders: ['X-Request-Id', 'Retry-After'],
       maxAge: 600,
@@ -89,6 +92,10 @@ export async function configureApp(app: NestFastifyApplication) {
   }
 
   const fastify = app.getHttpAdapter().getInstance();
+  // Загрузка файлов на диск: тело любого не-JSON типа отдаётся потоком (читает его FilesController)
+  fastify.addContentTypeParser('*', (_req, payload, done) =>
+    done(null, payload),
+  );
   fastify.addHook('onSend', async (req, reply) => {
     void reply.header(REQUEST_ID_HEADER, req.id);
   });

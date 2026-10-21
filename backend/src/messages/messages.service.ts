@@ -110,7 +110,7 @@ export class MessagesService {
 
     const content = this.buildContent(dto);
 
-    // Проверка файлов в S3 — до транзакции: сеть не должна держать блокировку
+    // Проверка файлов в хранилище — до транзакции: сеть не должна держать блокировку
     const verified = await this.attachments.verify(user, content.refs);
 
     if (content.type === MessageType.VOICE && this.audioProbe.enabled) {

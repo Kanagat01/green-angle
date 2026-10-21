@@ -69,7 +69,10 @@ export class StepAttachmentDto {
   @ApiProperty()
   createdAt: Date;
 
-  @ApiProperty({ description: 'Короткоживущая presigned GET-ссылка' })
+  @ApiProperty({
+    description:
+      'Короткоживущая ссылка на скачивание (S3 или API; может быть относительной)',
+  })
   url: string;
 }
 

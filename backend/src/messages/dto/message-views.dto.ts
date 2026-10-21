@@ -36,7 +36,7 @@ export class MessageViewDto {
   @ApiProperty({
     type: [StepAttachmentDto],
     description:
-      'Фото/видео/файлы (и аудио для голосовых) со свежими presigned-ссылками',
+      'Фото/видео/файлы (и аудио для голосовых) со свежими ссылками на скачивание',
   })
   attachments: StepAttachmentDto[];
 

@@ -18,7 +18,7 @@ import { PresignedUploadDto } from './dto/presigned-upload.dto.js';
 export class UploadsController {
   constructor(private readonly storage: StorageService) {}
 
-  /** Универсальная выдача presigned PUT: файлы идут напрямую в S3, минуя API. */
+  /** Универсальная выдача подписанной ссылки на загрузку (PUT): диск сервера или S3 — по драйверу. */
   @Post('presign')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: PresignedUploadDto })

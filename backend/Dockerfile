@@ -24,6 +24,9 @@ ENV FFPROBE_PATH=ffprobe
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# Каталог файлов (том): создаётся здесь, чтобы пользователь node мог писать в смонтированный том
+ENV UPLOAD_DIR=/data/uploads
+RUN mkdir -p /data/uploads && chown node:node /data/uploads
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

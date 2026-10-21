@@ -1,6 +1,7 @@
 # Боевой запуск: Caddy (HTTPS) → API → Postgres, миграции и ежедневные резервные копии БД.
-# Файлы (фото, видео, голосовые) хранятся во внешнем S3 (Yandex Object Storage / Selectel) —
-# MinIO здесь нет. Все настройки — в .env.prod (шаблон: .env.prod.example).
+# Файлы (фото, видео, голосовые) лежат на диске сервера (том uploads; он входит в резервную копию).
+# Вернуться на внешний S3 (Yandex Object Storage / Selectel): STORAGE_DRIVER=s3 и переменные S3_*.
+# Все настройки — в .env.prod (шаблон: .env.prod.example).
 #
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 services:
@@ -35,15 +36,20 @@ services:
       DATABASE_URL: postgresql://green:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/green_angle?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
-      S3_ENDPOINT: ${S3_ENDPOINT:?S3_ENDPOINT is required}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-disk}
+      FILES_SIGNING_SECRET: ${FILES_SIGNING_SECRET:?FILES_SIGNING_SECRET is required}
+      # ссылки на файлы ведут на тот же домен, что и API
+      FILES_PUBLIC_URL: https://${DOMAIN}/api/v1
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-ru-central1}
-      S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is required}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       STRICT_ATTACHMENTS: ${STRICT_ATTACHMENTS:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+    volumes: [uploads:/data/uploads]
     expose: ['3000']
 
   migrate:
@@ -92,7 +98,8 @@ services:
       timeout: 3s
       retries: 10
 
-  # Копия базы раз в BACKUP_INTERVAL_SEC (по умолчанию сутки) в ./backups, хранится BACKUP_KEEP_DAYS суток.
+  # Копия базы и файлов раз в BACKUP_INTERVAL_SEC (по умолчанию сутки) в ./backups, хранится BACKUP_KEEP_DAYS суток.
+  # Файлы копируются архивом полностью (BACKUP_UPLOADS=false отключает; для больших объёмов лучше снимки диска).
   # Копии лежат на том же сервере — периодически выгружайте ./backups в другое место.
   backup:
     image: postgres:16-alpine
@@ -108,11 +115,15 @@ services:
       BACKUP_DIR: /backups
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
       BACKUP_INTERVAL_SEC: ${BACKUP_INTERVAL_SEC:-86400}
+      BACKUP_UPLOADS: ${BACKUP_UPLOADS:-true}
+      UPLOADS_DIR: /data/uploads
     volumes:
       - ./deploy/backup:/scripts:ro
       - ./backups:/backups
+      - uploads:/data/uploads:ro
 
 volumes:
   pgdata:
+  uploads:
   caddy_data:
   caddy_config:

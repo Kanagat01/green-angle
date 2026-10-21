@@ -4,6 +4,11 @@ const base = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
   JWT_ACCESS_SECRET: 'access-secret-aaaaaaaaaaaa',
   JWT_REFRESH_SECRET: 'refresh-secret-bbbbbbbbbbb',
+  FILES_SIGNING_SECRET: 'files-secret-cccccccccccc',
+};
+
+const s3 = {
+  STORAGE_DRIVER: 's3',
   S3_ENDPOINT: 'http://localhost:9000',
   S3_BUCKET: 'bucket',
   S3_ACCESS_KEY: 'key',
@@ -22,6 +27,43 @@ describe('validateEnv', () => {
       CORS_ORIGINS: [],
       RATE_LIMIT_LOGIN_ACCOUNT_MAX: 5,
       RATE_LIMIT_LOGIN_IP_MAX: 30,
+      STORAGE_DRIVER: 'disk',
+      UPLOAD_DIR: './data/uploads',
+    });
+  });
+
+  describe('file storage', () => {
+    it('stores files on disk by default and then needs a signing secret', () => {
+      expect(() =>
+        validateEnv({ ...base, FILES_SIGNING_SECRET: undefined }),
+      ).toThrow(/FILES_SIGNING_SECRET/);
+      expect(() =>
+        validateEnv({ ...base, FILES_SIGNING_SECRET: 'short' }),
+      ).toThrow(/FILES_SIGNING_SECRET/);
+    });
+
+    it('does not need S3 settings for the disk driver', () => {
+      expect(() => validateEnv({ ...base, S3_ENDPOINT: '' })).not.toThrow();
+    });
+
+    it('needs the S3 settings, but not the signing secret, for the s3 driver', () => {
+      const rest = { ...base, FILES_SIGNING_SECRET: undefined };
+      expect(() => validateEnv({ ...rest, ...s3 })).not.toThrow();
+      expect(() => validateEnv({ ...rest, ...s3, S3_BUCKET: '' })).toThrow(
+        /S3_BUCKET/,
+      );
+      expect(() => validateEnv({ ...rest, STORAGE_DRIVER: 's3' })).toThrow(
+        /S3_ENDPOINT/,
+      );
+    });
+
+    it('rejects an unknown driver and a malformed public URL', () => {
+      expect(() => validateEnv({ ...base, STORAGE_DRIVER: 'ftp' })).toThrow(
+        /STORAGE_DRIVER/,
+      );
+      expect(() => validateEnv({ ...base, FILES_PUBLIC_URL: 'api' })).toThrow(
+        /FILES_PUBLIC_URL/,
+      );
     });
   });
 
@@ -128,10 +170,20 @@ describe('validateEnv', () => {
       },
     );
 
-    it('rejects the default S3 secret', () => {
+    it('rejects a placeholder file signing secret', () => {
       expect(() =>
-        validateEnv({ ...prod, S3_SECRET_KEY: 'minio12345' }),
+        validateEnv({
+          ...prod,
+          FILES_SIGNING_SECRET: 'change-me-files-secret',
+        }),
+      ).toThrow(/FILES_SIGNING_SECRET/);
+    });
+
+    it('rejects the default S3 secret for the s3 driver', () => {
+      expect(() =>
+        validateEnv({ ...prod, ...s3, S3_SECRET_KEY: 'minio12345' }),
       ).toThrow(/S3_SECRET_KEY/);
+      expect(() => validateEnv({ ...prod, ...s3 })).not.toThrow();
     });
 
     it('still allows placeholders in development and test', () => {
@@ -142,7 +194,7 @@ describe('validateEnv', () => {
             NODE_ENV,
             JWT_ACCESS_SECRET: 'change-me-access-secret-min-16',
             JWT_REFRESH_SECRET: 'change-me-refresh-secret-min-16',
-            S3_SECRET_KEY: 'minio12345',
+            FILES_SIGNING_SECRET: 'change-me-files-secret-min-16',
           }),
         ).not.toThrow();
       }

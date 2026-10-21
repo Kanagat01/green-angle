@@ -34,15 +34,31 @@ export const envSchema = z
     JWT_ACCESS_TTL_SEC: positiveInt(15 * 60),
     JWT_REFRESH_TTL_SEC: positiveInt(30 * 24 * 60 * 60),
 
-    S3_ENDPOINT: z.string().url(),
+    /** Где лежат файлы: на диске сервера или в S3-совместимом хранилище. Интерфейс API один и тот же. */
+    STORAGE_DRIVER: z.enum(['disk', 's3']).default('disk'),
+    /** Время жизни ссылок на загрузку и скачивание (для обоих драйверов) */
+    UPLOAD_URL_TTL_SEC: positiveInt(15 * 60),
+    DOWNLOAD_URL_TTL_SEC: positiveInt(60 * 60),
+
+    // --- драйвер disk ---
+    /** Каталог с файлами (в Docker — том, его нужно бэкапить вместе с БД) */
+    UPLOAD_DIR: z.string().min(1).default('./data/uploads'),
+    /** Секрет подписи ссылок загрузки/скачивания; обязателен для драйвера disk */
+    FILES_SIGNING_SECRET: emptyToUndefined(z.string().min(16).optional()),
+    /**
+     * Адрес API, который видит браузер (например https://api.example.com/api/v1), для ссылок
+     * загрузки/скачивания. Пусто — ссылки относительные («/api/v1/files/...»).
+     */
+    FILES_PUBLIC_URL: emptyToUndefined(z.string().url().optional()),
+
+    // --- драйвер s3 ---
+    S3_ENDPOINT: emptyToUndefined(z.string().url().optional()),
     S3_REGION: z.string().min(1).default('us-east-1'),
-    S3_BUCKET: z.string().min(1),
-    S3_ACCESS_KEY: z.string().min(1),
-    S3_SECRET_KEY: z.string().min(1),
+    S3_BUCKET: emptyToUndefined(z.string().min(1).optional()),
+    S3_ACCESS_KEY: emptyToUndefined(z.string().min(1).optional()),
+    S3_SECRET_KEY: emptyToUndefined(z.string().min(1).optional()),
     // Адрес, который видит браузер (в presigned URL). По умолчанию равен S3_ENDPOINT
-    S3_PUBLIC_ENDPOINT: z.string().url().optional(),
-    S3_PRESIGN_PUT_TTL_SEC: positiveInt(15 * 60),
-    S3_PRESIGN_GET_TTL_SEC: positiveInt(60 * 60),
+    S3_PUBLIC_ENDPOINT: emptyToUndefined(z.string().url().optional()),
 
     STRICT_ATTACHMENTS: boolFlag.default(false),
 
@@ -106,6 +122,28 @@ export const envSchema = z
         message: 'must differ from JWT_ACCESS_SECRET',
       });
     }
+    if (env.STORAGE_DRIVER === 's3') {
+      for (const key of [
+        'S3_ENDPOINT',
+        'S3_BUCKET',
+        'S3_ACCESS_KEY',
+        'S3_SECRET_KEY',
+      ] as const) {
+        if (!env[key]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'is required when STORAGE_DRIVER=s3',
+          });
+        }
+      }
+    } else if (!env.FILES_SIGNING_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FILES_SIGNING_SECRET'],
+        message: 'is required when STORAGE_DRIVER=disk',
+      });
+    }
     if (env.NODE_ENV !== 'production') return;
 
     for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
@@ -132,7 +170,20 @@ export const envSchema = z
         message: 'is required in production (voice duration verification)',
       });
     }
-    if (env.S3_SECRET_KEY === DEFAULT_S3_SECRET) {
+    if (
+      env.FILES_SIGNING_SECRET &&
+      PLACEHOLDER_SECRET.test(env.FILES_SIGNING_SECRET)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FILES_SIGNING_SECRET'],
+        message: 'placeholder value is not allowed in production',
+      });
+    }
+    if (
+      env.STORAGE_DRIVER === 's3' &&
+      env.S3_SECRET_KEY === DEFAULT_S3_SECRET
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['S3_SECRET_KEY'],

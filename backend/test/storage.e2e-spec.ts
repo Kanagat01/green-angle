@@ -5,19 +5,13 @@ import { Role } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AttachmentsService } from '../src/storage/attachments.service.js';
 import { StorageService } from '../src/storage/storage.service.js';
-import { createApp, createFixtures, Fixtures } from './helpers.js';
+import { createApp, createFixtures, Fixtures, transfer } from './helpers.js';
 
 /**
- * Интеграционный тест против настоящего S3 (MinIO из docker compose).
- * Локально пропускается, если S3 недоступен; в CI (CI=true) недоступность S3 — это падение.
+ * Контракт хранилища для настоящего драйвера. По умолчанию это диск (временный каталог);
+ * драйвер S3 проверяется тем же набором: `STORAGE_DRIVER=s3 pnpm test:e2e` (нужен MinIO из docker compose).
  */
-const s3Up = await fetch(process.env.S3_ENDPOINT!, {
-  signal: AbortSignal.timeout(2000),
-})
-  .then(() => true)
-  .catch(() => false);
-
-describe.runIf(s3Up || !!process.env.CI)('Storage with real S3', () => {
+describe(`Storage with the real driver (${process.env.STORAGE_DRIVER})`, () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let storage: StorageService;
@@ -28,13 +22,13 @@ describe.runIf(s3Up || !!process.env.CI)('Storage with real S3', () => {
   const createdKeys: string[] = [];
 
   const put = (url: string, body: Uint8Array, contentType: string) =>
-    fetch(url, {
+    transfer(app, url, {
       method: 'PUT',
-      body: body as BodyInit,
+      body,
       headers: { 'Content-Type': contentType },
     });
 
-  /** Выдаёт ticket и загружает в S3 `bytes` с указанным типом. */
+  /** Выдаёт ticket и загружает в хранилище `bytes` с указанным типом. */
   async function upload(
     owner: AuthUser,
     kind: 'PHOTO' | 'AUDIO',
@@ -101,7 +95,7 @@ describe.runIf(s3Up || !!process.env.CI)('Storage with real S3', () => {
     });
 
     const view = await attachments.toView(attachment);
-    const download = await fetch(view.url);
+    const download = await transfer(app, view.url);
     expect(download.ok).toBe(true);
     expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
   });
