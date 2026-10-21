@@ -46,7 +46,12 @@ type MessageWithRelations = Prisma.MessageGetPayload<{
   include: typeof include;
 }>;
 
-const APPROVED_CONFLICT = 'The request is approved; the dialog is read-only';
+const CLOSED_CONFLICT =
+  'The request is closed (approved or rejected); the dialog is read-only';
+
+/** Закрытая заявка (одобрена или отклонена): диалог только для чтения. */
+const isClosed = (status: RequestStatus) =>
+  status === RequestStatus.APPROVED || status === RequestStatus.REJECTED;
 
 @Injectable()
 export class MessagesService {
@@ -96,7 +101,7 @@ export class MessagesService {
 
   /**
    * Новое сообщение. Первое сообщение менеджера переводит заявку NEW → IN_DIALOG;
-   * в одобренной заявке (APPROVED) диалог только для чтения.
+   * в закрытой заявке (APPROVED, REJECTED) диалог только для чтения.
    */
   async create(
     user: AuthUser,
@@ -104,8 +109,8 @@ export class MessagesService {
     dto: CreateMessageDto,
   ): Promise<MessageViewDto> {
     const request = await this.requireAccessibleRequest(user, requestId);
-    if (request.status === RequestStatus.APPROVED) {
-      throw new ConflictException(APPROVED_CONFLICT);
+    if (isClosed(request.status)) {
+      throw new ConflictException(CLOSED_CONFLICT);
     }
 
     const content = this.buildContent(dto);
@@ -126,8 +131,8 @@ export class MessagesService {
         const [locked] = await tx.$queryRaw<{ status: RequestStatus }[]>`
           SELECT "status" FROM "Request" WHERE "id" = ${requestId}::uuid FOR UPDATE`;
         if (!locked) throw new NotFoundException('Request not found');
-        if (locked.status === RequestStatus.APPROVED) {
-          throw new ConflictException(APPROVED_CONFLICT);
+        if (isClosed(locked.status)) {
+          throw new ConflictException(CLOSED_CONFLICT);
         }
 
         const message = await tx.message.create({
@@ -184,7 +189,7 @@ export class MessagesService {
 
   /**
    * Presigned PUT для голосового сообщения: тот же презайн, что и у /uploads/presign для AUDIO,
-   * но с проверкой доступа к заявке. В одобренной заявке голосовое отправить нельзя.
+   * но с проверкой доступа к заявке. В закрытой заявке голосовое отправить нельзя.
    */
   async createVoiceUploadUrl(
     user: AuthUser,
@@ -193,8 +198,8 @@ export class MessagesService {
     size: number,
   ) {
     const request = await this.requireAccessibleRequest(user, requestId);
-    if (request.status === RequestStatus.APPROVED) {
-      throw new ConflictException(APPROVED_CONFLICT);
+    if (isClosed(request.status)) {
+      throw new ConflictException(CLOSED_CONFLICT);
     }
     return this.storage.createUploadTicket(
       user.id,

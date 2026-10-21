@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
@@ -22,6 +23,7 @@ import { AdminListRequestsQueryDto } from './dto/admin-list-requests-query.dto.j
 import {
   ApproveRequestResultDto,
   RequestListDto,
+  RequestViewDto,
 } from './dto/request-views.dto.js';
 import { RequestsService } from './requests.service.js';
 
@@ -55,5 +57,21 @@ export class AdminRequestsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.requests.approve(user, id);
+  }
+
+  /**
+   * Отклонить заявку: диалог закрывается для записи. Идемпотентно; одобренную заявку
+   * отклонить нельзя.
+   */
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: RequestViewDto })
+  @ApiNotFoundResponse({ description: 'Заявка не найдена' })
+  @ApiConflictResponse({ description: 'Заявка уже одобрена' })
+  reject(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.requests.reject(user, id);
   }
 }

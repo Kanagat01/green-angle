@@ -31,7 +31,8 @@ export interface MessageCreatedPayload {
   message: SharedMessage;
 }
 
-export type RequestUpdateReason = 'CREATED' | 'MESSAGE' | 'APPROVED';
+export type RequestUpdateReason =
+  'CREATED' | 'MESSAGE' | 'APPROVED' | 'REJECTED';
 
 export interface RequestUpdatedPayload {
   requestId: string;

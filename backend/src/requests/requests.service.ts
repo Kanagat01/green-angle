@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -120,8 +121,13 @@ export class RequestsService {
     const approval = await this.prisma.$transaction(async (tx) => {
       // Блокировка строки: сериализует параллельные approve и запись сообщений (см. MessagesService)
       const [locked] = await tx.$queryRaw<
-        { vehicleId: string | null; clientId: string; title: string }[]
-      >`SELECT "vehicleId", "clientId", "title" FROM "Request"
+        {
+          vehicleId: string | null;
+          clientId: string;
+          title: string;
+          status: RequestStatus;
+        }[]
+      >`SELECT "vehicleId", "clientId", "title", "status" FROM "Request"
           WHERE "id" = ${id}::uuid FOR UPDATE`;
       if (!locked) throw new NotFoundException('Request not found');
       if (locked.vehicleId) {
@@ -130,6 +136,9 @@ export class RequestsService {
           clientId: locked.clientId,
           created: false,
         };
+      }
+      if (locked.status === RequestStatus.REJECTED) {
+        throw new ConflictException('A rejected request cannot be approved');
       }
 
       const vehicle = await tx.vehicle.create({
@@ -182,6 +191,44 @@ export class RequestsService {
       request: await this.get(admin, id),
       vehicle: await this.vehicles.getCard(admin, approval.vehicleId),
     };
+  }
+
+  /**
+   * Отклонение заявки менеджером: NEW / IN_DIALOG → REJECTED, диалог становится только для
+   * чтения. Идемпотентно: повторный вызов ничего не меняет и не рассылает. Одобренную заявку
+   * отклонить нельзя (409). Та же блокировка строки, что у approve и записи сообщений.
+   */
+  async reject(admin: AuthUser, id: string): Promise<RequestViewDto> {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [locked] = await tx.$queryRaw<
+        { status: RequestStatus; clientId: string }[]
+      >`SELECT "status", "clientId" FROM "Request"
+          WHERE "id" = ${id}::uuid FOR UPDATE`;
+      if (!locked) throw new NotFoundException('Request not found');
+      if (locked.status === RequestStatus.REJECTED) {
+        return { changed: false, clientId: locked.clientId };
+      }
+      if (locked.status === RequestStatus.APPROVED) {
+        throw new ConflictException('An approved request cannot be rejected');
+      }
+      await tx.request.update({
+        where: { id },
+        data: { status: RequestStatus.REJECTED },
+      });
+      return { changed: true, clientId: locked.clientId };
+    });
+
+    if (result.changed) {
+      this.realtime.requestUpdated({
+        requestId: id,
+        clientId: result.clientId,
+        status: RequestStatus.REJECTED,
+        vehicleId: null,
+        reason: 'REJECTED',
+        at: new Date().toISOString(),
+      });
+    }
+    return this.get(admin, id);
   }
 }
 

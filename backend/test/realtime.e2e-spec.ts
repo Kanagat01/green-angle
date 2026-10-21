@@ -470,6 +470,35 @@ describe('Realtime (e2e)', () => {
         (p) => p.vehicleId === vehicleId,
       );
     });
+
+    it('announces rejection once to the owner and managers, even if repeated', async () => {
+      const id = await newRequest(tokens.broker);
+      const broker = await connect(tokens.broker);
+      const admin = await connect(tokens.admin);
+      const other = await connect(tokens.otherBroker);
+
+      const first = await http(
+        'POST',
+        `/admin/requests/${id}/reject`,
+        tokens.admin,
+      );
+      expect(first.statusCode).toBe(200);
+
+      for (const c of [broker, admin]) {
+        const updated = await c.waitFor(
+          'request.updated',
+          (p) => p.requestId === id && p.reason === 'REJECTED',
+        );
+        expect(updated).toMatchObject({ status: 'REJECTED', vehicleId: null });
+      }
+
+      await http('POST', `/admin/requests/${id}/reject`, tokens.admin);
+      await sleep(300);
+      expect(
+        broker.of('request.updated', (p) => p.reason === 'REJECTED'),
+      ).toHaveLength(1);
+      await other.expectNone('request.updated', (p) => p.requestId === id);
+    });
   });
 
   describe('vehicle.status_changed', () => {
