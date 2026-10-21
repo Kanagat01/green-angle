@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { hash, verify } from '@node-rs/argon2';
@@ -26,6 +30,14 @@ export class AuthService {
     const valid = await verify(passwordHash, password).catch(() => false);
     if (!user || !valid || !user.isActive)
       throw new UnauthorizedException('Invalid credentials');
+    // Про неподтверждённую почту говорим только тому, кто знает пароль
+    if (!user.emailVerifiedAt) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Email is not verified',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
 
     return this.issueTokens(user, randomUUID());
   }

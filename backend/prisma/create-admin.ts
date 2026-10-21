@@ -43,7 +43,12 @@ async function main() {
     if (existing) fail(`user ${email} already exists`);
 
     await prisma.user.create({
-      data: { email, passwordHash: await hash(password), role: Role.ADMIN },
+      data: {
+        email,
+        passwordHash: await hash(password),
+        role: Role.ADMIN,
+        emailVerifiedAt: new Date(),
+      },
     });
     console.log(`create-admin: administrator ${email} created`);
   } finally {

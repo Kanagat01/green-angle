@@ -108,6 +108,80 @@ describe('Rate limiting (e2e)', () => {
     }, 10_000);
   });
 
+  describe('registration and resend share the credential limits', () => {
+    const register = (email: string, ip = '10.0.0.1') =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/register',
+        headers: { 'x-forwarded-for': ip },
+        payload: {
+          type: 'PERSON',
+          name: 'Тест Лимитов',
+          phone: '+79001234567',
+          email,
+          password: PASSWORD,
+          consent: true,
+        },
+      });
+    const resend = (email: string, ip = '10.0.0.1') =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/resend-verification',
+        headers: { 'x-forwarded-for': ip },
+        payload: { email },
+      });
+
+    it('blocks repeated resend requests for one address', async () => {
+      const email = `limit-${fx.tag}@test.local`;
+      for (let i = 0; i < 3; i++) {
+        expect((await resend(email)).statusCode).toBe(202);
+      }
+      const blocked = await resend(email);
+      expect(blocked.statusCode).toBe(429);
+      expect(Number(blocked.headers['retry-after'])).toBeGreaterThanOrEqual(1);
+      // другой адрес с того же IP ещё может
+      expect((await resend(`other-${fx.tag}@test.local`)).statusCode).toBe(202);
+    });
+
+    it('blocks one IP that registers too many addresses', async () => {
+      for (let i = 0; i < 8; i++) {
+        expect(
+          (await register(`bulk-${i}-${fx.tag}@test.local`)).statusCode,
+        ).toBe(202);
+      }
+      expect((await register(`bulk-9-${fx.tag}@test.local`)).statusCode).toBe(
+        429,
+      );
+      expect(
+        (await register(`bulk-9-${fx.tag}@test.local`, '198.51.100.7'))
+          .statusCode,
+      ).toBe(202);
+    });
+
+    afterAll(async () => {
+      const cleanupApp = await createApp();
+      const prismaClean = cleanupApp.get(PrismaService);
+      const users = await prismaClean.user.findMany({
+        // только созданные регистрацией; почты фикстур (broker-…, admin-…) здесь трогать нельзя
+        where: {
+          OR: ['bulk-', 'limit-', 'other-'].map((prefix) => ({
+            email: { startsWith: prefix, endsWith: `-${fx.tag}@test.local` },
+          })),
+        },
+        select: { id: true, clientId: true },
+      });
+      await prismaClean.user.deleteMany({
+        where: { id: { in: users.map((u) => u.id) } },
+      });
+      await prismaClean.client.deleteMany({
+        where: {
+          id: { in: users.flatMap((u) => (u.clientId ? [u.clientId] : [])) },
+        },
+      });
+      await cleanupApp.close();
+    });
+  });
+
   describe('login by IP (credential stuffing)', () => {
     it('blocks one IP that tries many different accounts', async () => {
       for (let i = 0; i < 8; i++) {

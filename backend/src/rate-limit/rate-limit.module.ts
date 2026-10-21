@@ -13,11 +13,19 @@ interface HttpRequest {
   body?: { email?: unknown };
 }
 
-const LOGIN_PATH = '/api/v1/auth/login';
+/**
+ * Запросы с логином/почтой в теле: вход, регистрация и повторное письмо ограничены одними и теми
+ * же значениями; счётчики у каждого маршрута свои (так устроен throttler).
+ */
+const CREDENTIAL_PATHS = new Set([
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/resend-verification',
+]);
 
 const isLoginRequest = (context: ExecutionContext) => {
   const req = context.switchToHttp().getRequest<HttpRequest>();
-  return req.method === 'POST' && req.url.split('?')[0] === LOGIN_PATH;
+  return req.method === 'POST' && CREDENTIAL_PATHS.has(req.url.split('?')[0]);
 };
 
 /** Ключ для лимита по аккаунту: IP + email из тела (без учёта регистра). */

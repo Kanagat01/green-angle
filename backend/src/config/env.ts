@@ -82,6 +82,29 @@ export const envSchema = z
      */
     FFPROBE_PATH: emptyToUndefined(z.string().min(1).optional()),
 
+    /**
+     * Исходящая почта (подтверждение email, уведомления). Без SMTP_HOST письма не отправляются:
+     * они пишутся в лог — удобно для разработки и тестов. В production SMTP обязателен.
+     */
+    SMTP_HOST: emptyToUndefined(z.string().min(1).optional()),
+    SMTP_PORT: positiveInt(587),
+    /** true — сразу TLS (обычно порт 465); по умолчанию включается для порта 465 */
+    SMTP_SECURE: emptyToUndefined(boolFlag.optional()),
+    SMTP_USER: emptyToUndefined(z.string().min(1).optional()),
+    SMTP_PASS: emptyToUndefined(z.string().min(1).optional()),
+    /** Адрес и имя отправителя, например `Green Angle <noreply@example.com>` */
+    MAIL_FROM: z.string().min(3).default('Green Angle <noreply@localhost>'),
+    /** Адрес фронтенда: ссылки в письмах и push-уведомлениях. В production обязателен */
+    APP_URL: emptyToUndefined(
+      z
+        .string()
+        .url()
+        .transform((u) => u.replace(/\/+$/, ''))
+        .optional(),
+    ),
+    /** Срок действия ссылки подтверждения email, часы */
+    EMAIL_VERIFICATION_TTL_HOURS: positiveInt(24),
+
     /** Разрешённые Origin для CORS и Socket.IO через запятую; пусто — кросс-доменные запросы запрещены */
     CORS_ORIGINS: z
       .string()
@@ -159,6 +182,21 @@ export const envSchema = z
         code: 'custom',
         path: ['REDIS_URL'],
         message: 'is required in production (shared rate limit counters)',
+      });
+    }
+    if (!env.SMTP_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_HOST'],
+        message:
+          'is required in production (verification and notification emails)',
+      });
+    }
+    if (!env.APP_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['APP_URL'],
+        message: 'is required in production (links in emails)',
       });
     }
     if (!env.FFPROBE_PATH) {

@@ -37,6 +37,13 @@ process.env.FFPROBE_PATH = (
     path: string;
   }
 ).path;
+// Тесты никогда не отправляют настоящую почту, даже если в локальном .env настроен SMTP:
+// письма остаются в MailService.outbox
+process.env.SMTP_HOST = '';
+process.env.SMTP_USER = '';
+process.env.SMTP_PASS = '';
+process.env.APP_URL = 'http://localhost:3001';
+process.env.MAIL_FROM = 'Green Angle <noreply@test.local>';
 // Тесты не зависят от CORS/прокси, заданных в локальном .env
 process.env.CORS_ORIGINS = '';
 process.env.TRUST_PROXY = 'false';

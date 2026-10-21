@@ -75,6 +75,14 @@ services:
       S3_BUCKET: green-angle
       S3_ACCESS_KEY: minio
       S3_SECRET_KEY: minio12345
+      # почта: без SMTP_HOST письма пишутся в лог API (docker compose logs api)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Green Angle <noreply@localhost>}
+      APP_URL: ${APP_URL:-http://localhost:3001}
       REDIS_URL: redis://redis:6379
       FFPROBE_PATH: ffprobe
       # фронт локально — Next.js на :3001

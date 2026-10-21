@@ -45,6 +45,12 @@ model Client {
   id        String     @id @default(uuid()) @db.Uuid
   type      ClientType
   name      String
+  // ИНН компании (10 или 12 цифр); у физлица не заполняется
+  inn       String?
+  // телефон из регистрации: только хранится, не подтверждается и для входа не используется
+  phone     String?
+  // когда дано согласие на обработку персональных данных (при регистрации)
+  consentAt DateTime?
   createdAt DateTime   @default(now())
 
   users    User[]
@@ -53,14 +59,16 @@ model Client {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String
-  role         Role
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  passwordHash    String
+  role            Role
   // null только у ADMIN
-  clientId     String?  @db.Uuid
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  clientId        String?   @db.Uuid
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  // null — почта не подтверждена, войти нельзя. Аккаунты, созданные менеджером, подтверждены сразу
+  emailVerifiedAt DateTime?
 
   client Client? @relation(fields: [clientId], references: [id])
 
@@ -70,8 +78,23 @@ model User {
   createdRequests     Request[]
   statusChanges       VehicleStatusLog[]
   refreshTokens       RefreshToken[]
+  emailTokens         EmailToken[]
 
   @@index([clientId])
+}
+
+// Одноразовые ссылки подтверждения email; в БД хранится только хеш токена
+model EmailToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Refresh-токены с ротацией: id записи = jti токена, family связывает цепочку ротаций

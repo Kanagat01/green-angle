@@ -48,6 +48,31 @@ describe('OpenAPI document (e2e)', () => {
     expect(doc.paths['/api/v1/admin/requests']?.get).toBeDefined();
   });
 
+  it('describes registration, verification and the closed login', () => {
+    for (const path of ['register', 'verify-email', 'resend-verification']) {
+      expect(doc.paths[`/api/v1/auth/${path}`]?.post, path).toBeDefined();
+    }
+    expect(props('RegisterDto')).toEqual(
+      expect.arrayContaining([
+        'type',
+        'name',
+        'inn',
+        'phone',
+        'email',
+        'password',
+        'consent',
+      ]),
+    );
+    const responses = doc.paths['/api/v1/auth/register'].post
+      .responses as Record<string, unknown>;
+    expect(Object.keys(responses)).toContain('202');
+    const login = doc.paths['/api/v1/auth/login'].post.responses as Record<
+      string,
+      unknown
+    >;
+    expect(Object.keys(login)).toContain('403');
+  });
+
   it('describes the queue fields of a request', () => {
     expect(props('RequestViewDto')).toEqual(
       expect.arrayContaining(['awaitingReply', 'lastMessage', 'unreadCount']),

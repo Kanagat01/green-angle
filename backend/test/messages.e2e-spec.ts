@@ -87,6 +87,7 @@ describe('Request dialog (e2e)', () => {
         email: `admin2-${fx.tag}@test.local`,
         passwordHash: await hash(PASSWORD),
         role: Role.ADMIN,
+        emailVerifiedAt: new Date(),
       },
     });
 

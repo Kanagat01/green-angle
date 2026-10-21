@@ -75,7 +75,10 @@ export class UsersAdminService {
     return user;
   }
 
-  /** Создание логина подборщику / физлицу / сотруднику. Публичной регистрации нет. */
+  /**
+   * Создание логина подборщику / физлицу / сотруднику вручную. Менеджер ручается за адрес, поэтому
+   * почта считается подтверждённой сразу (самостоятельная регистрация — `POST /auth/register`).
+   */
   async create(dto: CreateUserDto): Promise<AdminUserDto> {
     await this.assertRoleMatchesClient(dto.role, dto.clientId);
 
@@ -86,6 +89,7 @@ export class UsersAdminService {
           passwordHash: await hash(dto.password),
           role: dto.role,
           clientId: dto.role === Role.ADMIN ? null : dto.clientId,
+          emailVerifiedAt: new Date(),
         },
         select,
       });

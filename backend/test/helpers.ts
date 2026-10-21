@@ -143,7 +143,12 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
   const passwordHash = await hash(PASSWORD);
 
   const admin = await prisma.user.create({
-    data: { email: `admin-${tag}@test.local`, passwordHash, role: Role.ADMIN },
+    data: {
+      email: `admin-${tag}@test.local`,
+      passwordHash,
+      role: Role.ADMIN,
+      emailVerifiedAt: new Date(),
+    },
   });
 
   async function client(type: ClientType, role: Role, name: string) {
@@ -156,6 +161,7 @@ export async function createFixtures(prisma: PrismaService): Promise<Fixtures> {
         passwordHash,
         role,
         clientId: c.id,
+        emailVerifiedAt: new Date(),
       },
     });
     const vehicle = await prisma.vehicle.create({

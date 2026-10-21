@@ -7,6 +7,12 @@ const base = {
   FILES_SIGNING_SECRET: 'files-secret-cccccccccccc',
 };
 
+/** Настройки почты, обязательные в production */
+const mail = {
+  SMTP_HOST: 'smtp.example.com',
+  APP_URL: 'https://app.example.com',
+};
+
 const s3 = {
   STORAGE_DRIVER: 's3',
   S3_ENDPOINT: 'http://localhost:9000',
@@ -91,6 +97,7 @@ describe('validateEnv', () => {
   it('enables Swagger outside production and disables it in production by default', () => {
     const prod = {
       ...base,
+      ...mail,
       NODE_ENV: 'production',
       REDIS_URL: 'redis://redis:6379',
       FFPROBE_PATH: 'ffprobe',
@@ -130,13 +137,78 @@ describe('validateEnv', () => {
     ).toThrow(/must differ/);
   });
 
+  describe('mail', () => {
+    it('has working defaults outside production and treats blanks as not set', () => {
+      const env = validateEnv({
+        ...base,
+        SMTP_HOST: '',
+        SMTP_USER: '',
+        SMTP_SECURE: '',
+      });
+      expect(env).toMatchObject({
+        SMTP_PORT: 587,
+        MAIL_FROM: 'Green Angle <noreply@localhost>',
+        EMAIL_VERIFICATION_TTL_HOURS: 24,
+      });
+      expect(env.SMTP_HOST).toBeUndefined();
+      expect(env.SMTP_SECURE).toBeUndefined();
+      expect(env.APP_URL).toBeUndefined();
+    });
+
+    it('reads the SMTP settings and removes the trailing slash of APP_URL', () => {
+      const env = validateEnv({
+        ...base,
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: '465',
+        SMTP_SECURE: 'true',
+        SMTP_USER: 'user@gmail.com',
+        SMTP_PASS: 'app password',
+        APP_URL: 'https://app.example.com/',
+      });
+      expect(env).toMatchObject({
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: 465,
+        SMTP_SECURE: true,
+        SMTP_USER: 'user@gmail.com',
+        SMTP_PASS: 'app password',
+        APP_URL: 'https://app.example.com',
+      });
+    });
+
+    it('rejects a malformed APP_URL, port or secure flag', () => {
+      expect(() =>
+        validateEnv({ ...base, APP_URL: 'app.example.com' }),
+      ).toThrow(/APP_URL/);
+      expect(() => validateEnv({ ...base, SMTP_PORT: '0' })).toThrow(
+        /SMTP_PORT/,
+      );
+      expect(() => validateEnv({ ...base, SMTP_SECURE: 'yes' })).toThrow(
+        /SMTP_SECURE/,
+      );
+    });
+  });
+
   describe('in production', () => {
     const prod = {
       ...base,
+      ...mail,
       NODE_ENV: 'production',
       REDIS_URL: 'redis://redis:6379',
       FFPROBE_PATH: 'ffprobe',
     };
+
+    it('requires SMTP_HOST and APP_URL (verification emails and their links)', () => {
+      expect(() => validateEnv({ ...prod, SMTP_HOST: undefined })).toThrow(
+        /SMTP_HOST/,
+      );
+      expect(() => validateEnv({ ...prod, SMTP_HOST: '' })).toThrow(
+        /SMTP_HOST/,
+      );
+      expect(() => validateEnv({ ...prod, APP_URL: undefined })).toThrow(
+        /APP_URL/,
+      );
+      expect(() => validateEnv({ ...prod, APP_URL: '' })).toThrow(/APP_URL/);
+    });
 
     it('requires REDIS_URL (shared rate limit counters)', () => {
       expect(() => validateEnv({ ...prod, REDIS_URL: undefined })).toThrow(

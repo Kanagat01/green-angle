@@ -19,7 +19,7 @@ async function upsertUser(email: string, role: Role, password: string, clientId?
   return prisma.user.upsert({
     where: { email },
     update: {},
-    create: { email, role, passwordHash, clientId },
+    create: { email, role, passwordHash, clientId, emailVerifiedAt: new Date() },
   });
 }
 
