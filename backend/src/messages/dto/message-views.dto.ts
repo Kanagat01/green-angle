@@ -40,8 +40,12 @@ export class MessageViewDto {
   })
   attachments: StepAttachmentDto[];
 
-  @ApiProperty({ type: MessageAuthorDto })
-  author: MessageAuthorDto;
+  @ApiProperty({
+    type: MessageAuthorDto,
+    nullable: true,
+    description: 'null у служебных сообщений (type=SYSTEM)',
+  })
+  author: MessageAuthorDto | null;
 
   @ApiProperty({ description: 'Сообщение написано текущим пользователем' })
   isMine: boolean;

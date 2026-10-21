@@ -37,6 +37,8 @@ enum RequestStatus {
 enum MessageType {
   TEXT
   VOICE
+  // служебная строка в диалоге (одобрение, отклонение, смена статуса машины); без автора
+  SYSTEM
 }
 
 model Client {
@@ -186,7 +188,8 @@ model Request {
 model Message {
   id          String      @id @default(uuid()) @db.Uuid
   requestId   String      @db.Uuid
-  authorId    String      @db.Uuid
+  // null только у SYSTEM (CHECK-ограничение в миграции)
+  authorId    String?     @db.Uuid
   type        MessageType @default(TEXT)
   text        String?
   // только для VOICE
@@ -196,7 +199,7 @@ model Message {
   createdAt   DateTime    @default(now())
 
   request     Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  author      User          @relation(fields: [authorId], references: [id])
+  author      User?         @relation(fields: [authorId], references: [id], onDelete: Restrict)
   attachments Attachment[]
   reads       MessageRead[]
 

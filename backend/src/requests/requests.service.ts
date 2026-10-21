@@ -134,7 +134,7 @@ export class RequestsService {
         return {
           vehicleId: locked.vehicleId,
           clientId: locked.clientId,
-          created: false,
+          created: false as const,
         };
       }
       if (locked.status === RequestStatus.REJECTED) {
@@ -158,15 +158,22 @@ export class RequestsService {
         where: { id },
         data: { status: RequestStatus.APPROVED, vehicleId: vehicle.id },
       });
+      const systemMessageId = await this.messages.createSystem(
+        tx,
+        id,
+        `Менеджер одобрил вариант и создал заказ. Статус: «${stepTitle(1)}».`,
+      );
       return {
         vehicleId: vehicle.id,
         clientId: locked.clientId,
-        created: true,
+        created: true as const,
+        systemMessageId,
       };
     });
 
     // События только о реальном изменении: повторное одобрение ничего не рассылает
     if (approval.created) {
+      await this.messages.announce([approval.systemMessageId]);
       const at = new Date().toISOString();
       this.realtime.requestUpdated({
         requestId: id,
@@ -206,7 +213,7 @@ export class RequestsService {
           WHERE "id" = ${id}::uuid FOR UPDATE`;
       if (!locked) throw new NotFoundException('Request not found');
       if (locked.status === RequestStatus.REJECTED) {
-        return { changed: false, clientId: locked.clientId };
+        return { changed: false as const, clientId: locked.clientId };
       }
       if (locked.status === RequestStatus.APPROVED) {
         throw new ConflictException('An approved request cannot be rejected');
@@ -215,10 +222,20 @@ export class RequestsService {
         where: { id },
         data: { status: RequestStatus.REJECTED },
       });
-      return { changed: true, clientId: locked.clientId };
+      const systemMessageId = await this.messages.createSystem(
+        tx,
+        id,
+        'Менеджер отклонил заявку.',
+      );
+      return {
+        changed: true as const,
+        clientId: locked.clientId,
+        systemMessageId,
+      };
     });
 
     if (result.changed) {
+      await this.messages.announce([result.systemMessageId]);
       this.realtime.requestUpdated({
         requestId: id,
         clientId: result.clientId,

@@ -248,13 +248,44 @@ export class MessagesService {
     return { unreadCount };
   }
 
-  /** Непрочитанное = написано не мной и без моей отметки о прочтении. */
+  /**
+   * Служебная строка в диалоге («Менеджер одобрил…», «Статус машины: …»). Пишется в чужой
+   * транзакции вместе с изменением, о котором сообщает; рассылка — отдельно, после коммита
+   * (`announce`). Не считается непрочитанной и не меняет статус заявки.
+   */
+  async createSystem(
+    tx: Prisma.TransactionClient,
+    requestId: string,
+    text: string,
+  ): Promise<string> {
+    const created = await tx.message.create({
+      data: { requestId, authorId: null, type: MessageType.SYSTEM, text },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
+  /** Рассылает созданные сообщения подписчикам заявок; вызывать после коммита транзакции. */
+  async announce(messageIds: string[]): Promise<void> {
+    if (messageIds.length === 0) return;
+    const rows = await this.prisma.message.findMany({
+      where: { id: { in: messageIds } },
+      include,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    for (const row of rows) {
+      this.realtime.messageCreated({ message: await this.toShared(row) });
+    }
+  }
+
+  /** Непрочитанное = чужое сообщение людей (не служебное) без моей отметки о прочтении. */
   private unreadWhere(
     user: AuthUser,
     extra: Prisma.MessageWhereInput,
   ): Prisma.MessageWhereInput {
     return {
       ...extra,
+      type: { not: MessageType.SYSTEM },
       authorId: { not: user.id },
       reads: { none: { userId: user.id } },
     };

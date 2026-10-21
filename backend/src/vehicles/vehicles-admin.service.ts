@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/auth-user.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { AttachmentsService } from '../storage/attachments.service.js';
@@ -34,6 +35,7 @@ export class VehiclesAdminService {
     private readonly attachments: AttachmentsService,
     private readonly vehicles: VehiclesService,
     private readonly realtime: RealtimeService,
+    private readonly messages: MessagesService,
   ) {}
 
   /** Ручное создание машины в супер ЛК: VIN обязателен, клиент — существующий или новый. */
@@ -188,9 +190,28 @@ export class VehiclesAdminService {
           changedById: user.id,
         },
       });
-      return { clientId: vehicle.clientId, from };
+
+      // Если у машины есть диалог по заявке, смена этапа попадает в него служебной строкой
+      let systemMessageId: string | null = null;
+      if (to !== from) {
+        const request = await tx.request.findUnique({
+          where: { vehicleId: id },
+          select: { id: true },
+        });
+        if (request) {
+          systemMessageId = await this.messages.createSystem(
+            tx,
+            request.id,
+            `Статус машины: «${stepTitle(to)}».`,
+          );
+        }
+      }
+      return { clientId: vehicle.clientId, from, systemMessageId };
     });
 
+    if (change.systemMessageId) {
+      await this.messages.announce([change.systemMessageId]);
+    }
     this.realtime.vehicleStatusChanged({
       vehicleId: id,
       clientId: change.clientId,

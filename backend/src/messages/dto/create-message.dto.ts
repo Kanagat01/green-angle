@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsEnum,
   IsIn,
   IsInt,
   IsOptional,
@@ -46,9 +45,13 @@ export class MessageAttachmentDto {
 }
 
 export class CreateMessageDto {
-  @ApiPropertyOptional({ enum: MessageType, default: MessageType.TEXT })
+  @ApiPropertyOptional({
+    enum: [MessageType.TEXT, MessageType.VOICE],
+    default: MessageType.TEXT,
+    description: 'SYSTEM создаёт только сервер',
+  })
   @IsOptional()
-  @IsEnum(MessageType)
+  @IsIn([MessageType.TEXT, MessageType.VOICE])
   type: MessageType = MessageType.TEXT;
 
   @ApiPropertyOptional({

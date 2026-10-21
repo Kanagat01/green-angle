@@ -166,7 +166,10 @@ describe('Request rejection (e2e)', () => {
 
       const list = await call('GET', `/requests/${id}/messages`, tokens.broker);
       expect(list.statusCode).toBe(200);
-      expect(list.json<{ items: unknown[] }>().items).toHaveLength(1);
+      // кроме «до» в ленте только служебная строка об отклонении
+      const items = list.json<{ items: { type: string }[] }>().items;
+      expect(items.filter((m) => m.type !== 'SYSTEM')).toHaveLength(1);
+      expect(items.filter((m) => m.type === 'SYSTEM')).toHaveLength(1);
       expect(
         (await call('POST', `/requests/${id}/read`, tokens.broker)).statusCode,
       ).toBe(200);
@@ -188,9 +191,11 @@ describe('Request rejection (e2e)', () => {
       const accepted = results
         .slice(1)
         .filter((r) => r.statusCode === 201).length;
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(
-        accepted,
-      );
+      expect(
+        await prisma.message.count({
+          where: { requestId: id, type: { not: 'SYSTEM' } },
+        }),
+      ).toBe(accepted);
     });
 
     it('lets exactly one of a concurrent approve and reject win', async () => {

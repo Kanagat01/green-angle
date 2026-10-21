@@ -306,7 +306,10 @@ describe('Request approval (e2e)', () => {
       }
       const list = await call('GET', `/requests/${id}/messages`, tokens.broker);
       expect(list.statusCode).toBe(200);
-      expect(list.json<{ items: unknown[] }>().items).toHaveLength(1);
+      // кроме «до» в ленте только служебная строка об одобрении
+      const items = list.json<{ items: { type: string }[] }>().items;
+      expect(items.filter((m) => m.type !== 'SYSTEM')).toHaveLength(1);
+      expect(items.filter((m) => m.type === 'SYSTEM')).toHaveLength(1);
     });
 
     it('serializes approval with message posting: no message sneaks in after APPROVED', async () => {
@@ -327,9 +330,11 @@ describe('Request approval (e2e)', () => {
       const accepted = results
         .slice(1)
         .filter((r) => r.statusCode === 201).length;
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(
-        accepted,
-      );
+      expect(
+        await prisma.message.count({
+          where: { requestId: id, type: { not: 'SYSTEM' } },
+        }),
+      ).toBe(accepted);
 
       // после одобрения писать уже нельзя
       expect(

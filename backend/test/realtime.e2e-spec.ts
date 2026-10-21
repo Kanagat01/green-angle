@@ -471,6 +471,33 @@ describe('Realtime (e2e)', () => {
       );
     });
 
+    it('delivers the system message of an approval to the request room, without an author', async () => {
+      const id = await newRequest(tokens.broker);
+      const broker = await connect(tokens.broker);
+      const admin = await connect(tokens.admin);
+      const other = await connect(tokens.otherBroker);
+      expect(await broker.join(id)).toEqual({ ok: true });
+      expect(await admin.join(id)).toEqual({ ok: true });
+
+      await http('POST', `/admin/requests/${id}/approve`, tokens.admin);
+
+      for (const c of [broker, admin]) {
+        const created = await c.waitFor(
+          'message.created',
+          (p) => p.message.requestId === id && p.message.type === 'SYSTEM',
+        );
+        expect(created.message).toMatchObject({
+          author: null,
+          attachments: [],
+          text: 'Менеджер одобрил вариант и создал заказ. Статус: «Ожидает оплату».',
+        });
+      }
+      await other.expectNone(
+        'message.created',
+        (p) => p.message.requestId === id,
+      );
+    });
+
     it('announces rejection once to the owner and managers, even if repeated', async () => {
       const id = await newRequest(tokens.broker);
       const broker = await connect(tokens.broker);
