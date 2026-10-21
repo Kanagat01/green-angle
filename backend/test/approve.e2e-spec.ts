@@ -6,6 +6,7 @@ import {
   createFixtures,
   Fixtures,
   randomVin,
+  stepEvidence,
 } from './helpers.js';
 
 interface RequestView {
@@ -179,7 +180,7 @@ describe('Request approval (e2e)', () => {
         'POST',
         `/admin/vehicles/${vehicle.id}/status`,
         tokens.admin,
-        { step: 2 },
+        { step: 2, ...(await stepEvidence(app, fx.admin.id, 2)) },
       );
       expect(moved.statusCode).toBe(200);
       const found = await call(

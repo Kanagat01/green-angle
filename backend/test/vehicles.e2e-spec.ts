@@ -7,6 +7,7 @@ import {
   createFixtures,
   Fixtures,
   randomVin,
+  stepEvidence,
   transfer,
 } from './helpers.js';
 
@@ -71,9 +72,11 @@ describe('Vehicles and statuses (e2e)', () => {
     return res.json<Card>();
   }
 
-  const setStatus = (id: string, step: number, extra: object = {}) =>
+  /** Смена статуса вместе с обязательным вложением шага (кроме случаев, когда `extra` задаёт своё). */
+  const setStatus = async (id: string, step: number, extra: object = {}) =>
     call('POST', `/admin/vehicles/${id}/status`, tokens.admin, {
       step,
+      ...(await stepEvidence(app, fx.admin.id, step)),
       ...extra,
     });
 
@@ -284,7 +287,14 @@ describe('Vehicles and statuses (e2e)', () => {
 
     it('rejects moving to the same step', async () => {
       const card = await createFor(fx.broker.clientId, { startStep: 4 });
-      expect((await setStatus(card.id, 4)).statusCode).toBe(400);
+      // тот же шаг без номера, вложений и комментария — ничего менять не нужно
+      const res = await call(
+        'POST',
+        `/admin/vehicles/${card.id}/status`,
+        tokens.admin,
+        { step: 4 },
+      );
+      expect(res.statusCode).toBe(400);
     });
 
     it.each([0, 14, 2.5, 'x'])('rejects an invalid step %s', async (step) => {

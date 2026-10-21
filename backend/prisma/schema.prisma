@@ -153,9 +153,12 @@ model Attachment {
   messageId     String?        @db.Uuid
   createdAt     DateTime       @default(now())
 
-  uploadedBy  User         @relation(fields: [uploadedById], references: [id])
-  vehicleStep VehicleStep? @relation(fields: [vehicleStepId], references: [id], onDelete: Cascade)
-  message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedBy       User         @relation(fields: [uploadedById], references: [id])
+  vehicleStep      VehicleStep? @relation(fields: [vehicleStepId], references: [id], onDelete: Cascade)
+  message          Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // сообщения диалога, в которых показано это вложение шага (комментарий при смене статуса);
+  // удаление сообщения не удаляет вложение шага
+  sharedInMessages Message[]    @relation("MessageSharedAttachments")
 
   @@index([vehicleStepId])
   @@index([messageId])
@@ -198,10 +201,12 @@ model Message {
   links       String[]    @default([])
   createdAt   DateTime    @default(now())
 
-  request     Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  author      User?         @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  attachments Attachment[]
-  reads       MessageRead[]
+  request           Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author            User?         @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  attachments       Attachment[]
+  // вложения шагов машины, показанные в этом сообщении (комментарий менеджера при смене статуса)
+  sharedAttachments Attachment[]  @relation("MessageSharedAttachments")
+  reads             MessageRead[]
 
   @@index([requestId, createdAt])
   @@index([authorId])

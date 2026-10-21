@@ -23,7 +23,6 @@ describe('validateEnv', () => {
       PORT: 3000,
       LOG_LEVEL: 'info',
       TRUST_PROXY: false,
-      STRICT_ATTACHMENTS: false,
       CORS_ORIGINS: [],
       RATE_LIMIT_LOGIN_ACCOUNT_MAX: 5,
       RATE_LIMIT_LOGIN_IP_MAX: 30,

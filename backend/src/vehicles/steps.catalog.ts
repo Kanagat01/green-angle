@@ -9,7 +9,7 @@ export type ExpectedAttachment =
 export interface StepDefinition {
   step: number;
   title: string;
-  /** Ожидаемое вложение; не блокирует смену статуса, пока STRICT_ATTACHMENTS выключен */
+  /** Обязательное вложение: без него нельзя перейти на этот шаг вперёд (откат назад — можно) */
   expectedAttachment: ExpectedAttachment | null;
 }
 

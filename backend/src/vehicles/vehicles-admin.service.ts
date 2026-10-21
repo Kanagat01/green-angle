@@ -4,9 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '../auth/auth-user.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { AttachmentKind, MessageType } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
@@ -18,6 +18,7 @@ import { UpdateVehicleDto } from './dto/update-vehicle.dto.js';
 import { StepAttachmentDto, VehicleCardDto } from './dto/vehicle-views.dto.js';
 import {
   DECLARATION_STEP,
+  type ExpectedAttachment,
   initialSteps,
   STEPS,
   stepTitle,
@@ -25,13 +26,10 @@ import {
 } from './steps.catalog.js';
 import { VehiclesService } from './vehicles.service.js';
 
-type Tx = Prisma.TransactionClient;
-
 @Injectable()
 export class VehiclesAdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly attachments: AttachmentsService,
     private readonly vehicles: VehiclesService,
     private readonly realtime: RealtimeService,
@@ -117,6 +115,12 @@ export class VehiclesAdminService {
   /**
    * Смена статуса: вперёд и назад. Всё в одной транзакции вместе с записью в журнал
    * VehicleStatusLog (кто, когда, с какого шага на какой).
+   *
+   * Вложение входит в само действие: если у целевого шага есть ожидаемое вложение (файл, фото,
+   * видео или номер декларации), без него статус не сохраняется. Подходит вложение, переданное
+   * сейчас, или уже прикреплённое к шагу раньше. При откате назад (исправление ошибки)
+   * вложение не требуется. Комментарий уходит в диалог по заявке сообщением менеджера вместе
+   * с вложениями шага; служебная строка «Статус машины: …» пишется, если этап изменился.
    */
   async changeStatus(
     user: AuthUser,
@@ -125,11 +129,25 @@ export class VehiclesAdminService {
   ): Promise<VehicleCardDto> {
     const to = dto.step;
     const declaration = dto.declarationNumber;
+    const comment = dto.comment?.trim() || undefined;
+    const provided = dto.attachments ?? [];
     if (declaration !== undefined && to < DECLARATION_STEP) {
       throw new BadRequestException(
         `declarationNumber is applicable from step ${DECLARATION_STEP}`,
       );
     }
+
+    const expected = STEPS[to - 1].expectedAttachment;
+    const expectedKind = fileKindOf(expected);
+    if (provided.some((a) => a.kind !== expectedKind)) {
+      throw new BadRequestException(
+        expectedKind
+          ? `Step ${to} takes ${expectedKind} attachments only`
+          : `Step ${to} does not take attachments`,
+      );
+    }
+    // Файлы проверяются в хранилище до транзакции: сеть не должна держать блокировки
+    const verified = await this.attachments.verify(user, provided);
 
     const change = await this.prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.findUnique({
@@ -139,13 +157,41 @@ export class VehiclesAdminService {
       if (!vehicle) throw new NotFoundException('Vehicle not found');
       const from = vehicle.currentStep;
 
-      // Тот же шаг допустим только чтобы дополнить номер декларации
-      if (to === from && declaration === undefined) {
+      // Тот же шаг допустим, только чтобы дополнить номер, вложения или комментарий
+      if (
+        to === from &&
+        declaration === undefined &&
+        verified.length === 0 &&
+        !comment
+      ) {
         throw new BadRequestException('Vehicle is already at this step');
       }
 
-      if (this.config.get<boolean>('STRICT_ATTACHMENTS')) {
-        await assertExpectedAttachments(tx, id, to, declaration);
+      const target = await tx.vehicleStep.findUnique({
+        where: { vehicleId_step: { vehicleId: id, step: to } },
+        select: { id: true, declarationNumber: true },
+      });
+      if (!target) throw new NotFoundException('Vehicle not found');
+
+      if (to >= from) {
+        if (expectedKind && verified.length === 0) {
+          const already = await tx.attachment.count({
+            where: { vehicleStepId: target.id, kind: expectedKind },
+          });
+          if (already === 0) {
+            throw new BadRequestException(
+              `Step ${to} requires a ${expectedKind} attachment`,
+            );
+          }
+        }
+        if (
+          expected === 'DECLARATION_NUMBER' &&
+          !(declaration ?? target.declarationNumber)
+        ) {
+          throw new BadRequestException(
+            `Step ${to} requires a declaration number`,
+          );
+        }
       }
 
       // Условное обновление защищает от гонки двух администраторов
@@ -191,27 +237,54 @@ export class VehiclesAdminService {
         },
       });
 
-      // Если у машины есть диалог по заявке, смена этапа попадает в него служебной строкой
-      let systemMessageId: string | null = null;
-      if (to !== from) {
-        const request = await tx.request.findUnique({
-          where: { vehicleId: id },
-          select: { id: true },
-        });
-        if (request) {
-          systemMessageId = await this.messages.createSystem(
-            tx,
-            request.id,
-            `Статус машины: «${stepTitle(to)}».`,
+      const created = await this.attachments.createVerified(
+        tx,
+        user,
+        verified,
+        {
+          vehicleStepId: target.id,
+        },
+      );
+
+      // Диалог по заявке (если он есть): служебная строка об этапе и комментарий менеджера
+      // с вложениями шага. Время разнесено на миллисекунду: строка этапа идёт первой.
+      const messageIds: string[] = [];
+      const request = await tx.request.findUnique({
+        where: { vehicleId: id },
+        select: { id: true },
+      });
+      if (request) {
+        if (to !== from) {
+          messageIds.push(
+            await this.messages.createSystem(
+              tx,
+              request.id,
+              `Статус машины: «${stepTitle(to)}».`,
+              now,
+            ),
           );
         }
+        if (comment) {
+          const message = await tx.message.create({
+            data: {
+              requestId: request.id,
+              authorId: user.id,
+              type: MessageType.TEXT,
+              text: comment,
+              createdAt: new Date(now.getTime() + 1),
+              sharedAttachments: {
+                connect: created.map((a) => ({ id: a.id })),
+              },
+            },
+            select: { id: true },
+          });
+          messageIds.push(message.id);
+        }
       }
-      return { clientId: vehicle.clientId, from, systemMessageId };
+      return { clientId: vehicle.clientId, from, messageIds };
     });
 
-    if (change.systemMessageId) {
-      await this.messages.announce([change.systemMessageId]);
-    }
+    await this.messages.announce(change.messageIds);
     this.realtime.vehicleStatusChanged({
       vehicleId: id,
       clientId: change.clientId,
@@ -251,34 +324,19 @@ export class VehiclesAdminService {
   }
 }
 
-/** Строгий режим (STRICT_ATTACHMENTS): пройденные шаги должны иметь ожидаемое вложение. */
-async function assertExpectedAttachments(
-  tx: Tx,
-  vehicleId: string,
-  to: number,
-  newDeclaration: string | undefined,
-): Promise<void> {
-  const passed = await tx.vehicleStep.findMany({
-    where: { vehicleId, step: { lt: to } },
-    orderBy: { step: 'asc' },
-    include: { _count: { select: { attachments: true } } },
-  });
-
-  const missing = passed
-    .filter((s) => {
-      const expected = STEPS[s.step - 1].expectedAttachment;
-      if (!expected) return false;
-      if (expected === 'DECLARATION_NUMBER') {
-        return !(s.declarationNumber ?? newDeclaration);
-      }
-      return s._count.attachments === 0;
-    })
-    .map((s) => s.step);
-
-  if (missing.length > 0) {
-    throw new BadRequestException(
-      `Expected attachments are missing for steps: ${missing.join(', ')}`,
-    );
+/** Вид файла, которого ждёт шаг; null — шаг файлов не ждёт (или ждёт номер декларации). */
+function fileKindOf(
+  expected: ExpectedAttachment | null,
+): AttachmentKind | null {
+  switch (expected) {
+    case 'PHOTO':
+      return AttachmentKind.PHOTO;
+    case 'VIDEO':
+      return AttachmentKind.VIDEO;
+    case 'FILE':
+      return AttachmentKind.FILE;
+    default:
+      return null;
   }
 }
 

@@ -60,8 +60,6 @@ export const envSchema = z
     // Адрес, который видит браузер (в presigned URL). По умолчанию равен S3_ENDPOINT
     S3_PUBLIC_ENDPOINT: emptyToUndefined(z.string().url().optional()),
 
-    STRICT_ATTACHMENTS: boolFlag.default(false),
-
     /**
      * Redis для общих счётчиков rate limit между экземплярами API. Без него счётчики
      * хранятся в памяти процесса (годится для одного экземпляра и разработки).

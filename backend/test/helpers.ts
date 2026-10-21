@@ -9,6 +9,8 @@ import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { ClientType, Role } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { StorageService } from '../src/storage/storage.service.js';
+import { STEPS } from '../src/vehicles/steps.catalog.js';
 
 export const PASSWORD = 'test-password-123';
 
@@ -69,6 +71,42 @@ export async function transfer(
     status: res.statusCode,
     headers: res.headers as Record<string, string>,
   });
+}
+
+/**
+ * Всё, что нужно приложить к смене статуса на `step`: загружает в хранилище файл ожидаемого
+ * вида или возвращает номер декларации. Для шагов без обязательного вложения — пустой объект.
+ * Использовать так: `{ step, ...(await stepEvidence(app, adminId, step)) }`.
+ */
+export async function stepEvidence(
+  app: NestFastifyApplication,
+  uploaderId: string,
+  step: number,
+): Promise<{
+  attachments?: { key: string; kind: string }[];
+  declarationNumber?: string;
+}> {
+  const expected = STEPS[step - 1].expectedAttachment;
+  if (!expected) return {};
+  if (expected === 'DECLARATION_NUMBER') {
+    return { declarationNumber: `TEST-${randomUUID().slice(0, 8)}` };
+  }
+  const mime = {
+    PHOTO: 'image/png',
+    VIDEO: 'video/mp4',
+    FILE: 'application/pdf',
+  }[expected];
+  const bytes = new Uint8Array(32).fill(1);
+  const ticket = await app
+    .get(StorageService)
+    .createUploadTicket(uploaderId, expected, mime, bytes.length);
+  const res = await transfer(app, ticket.uploadUrl, {
+    method: 'PUT',
+    body: bytes,
+    headers: ticket.headers,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return { attachments: [{ key: ticket.key, kind: expected }] };
 }
 
 export interface Fixtures {

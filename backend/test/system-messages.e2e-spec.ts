@@ -6,6 +6,7 @@ import {
   createFixtures,
   Fixtures,
   randomVin,
+  stepEvidence,
 } from './helpers.js';
 
 interface Message {
@@ -52,9 +53,14 @@ describe('System messages in the dialog (e2e)', () => {
     (await messages(id)).filter((m) => m.type === 'SYSTEM');
   const approve = (id: string) =>
     call('POST', `/admin/requests/${id}/approve`, tokens.admin);
-  const changeStatus = (vehicleId: string, step: number, extra: object = {}) =>
+  const changeStatus = async (
+    vehicleId: string,
+    step: number,
+    extra: object = {},
+  ) =>
     call('POST', `/admin/vehicles/${vehicleId}/status`, tokens.admin, {
       step,
+      ...(step <= 13 ? await stepEvidence(app, fx.admin.id, step) : {}),
       ...extra,
     });
 

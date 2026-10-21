@@ -40,6 +40,8 @@ import {
 const include = {
   author: { select: { id: true, role: true } },
   attachments: { orderBy: { createdAt: 'asc' } },
+  // вложения шагов машины, показанные в комментарии менеджера при смене статуса
+  sharedAttachments: { orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.MessageInclude;
 
 type MessageWithRelations = Prisma.MessageGetPayload<{
@@ -257,9 +259,17 @@ export class MessagesService {
     tx: Prisma.TransactionClient,
     requestId: string,
     text: string,
+    /** Время строки; по умолчанию — время начала транзакции (оно общее для всех её записей) */
+    createdAt?: Date,
   ): Promise<string> {
     const created = await tx.message.create({
-      data: { requestId, authorId: null, type: MessageType.SYSTEM, text },
+      data: {
+        requestId,
+        authorId: null,
+        type: MessageType.SYSTEM,
+        text,
+        createdAt,
+      },
       select: { id: true },
     });
     return created.id;
@@ -396,7 +406,9 @@ export class MessagesService {
       links: m.links,
       durationSec: m.durationSec,
       attachments: await Promise.all(
-        m.attachments.map((a) => this.attachments.toView(a)),
+        [...m.attachments, ...m.sharedAttachments].map((a) =>
+          this.attachments.toView(a),
+        ),
       ),
       author: m.author,
       createdAt: m.createdAt,
