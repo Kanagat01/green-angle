@@ -99,6 +99,8 @@ model Vehicle {
   // 1..13, диапазон проверяется CHECK-ограничением в миграции
   currentStep Int      @default(1)
   createdAt   DateTime @default(now())
+  // «Обновлено» в карточке: смена статуса, правка названия и VIN
+  updatedAt   DateTime @default(now()) @updatedAt
 
   client     Client             @relation(fields: [clientId], references: [id])
   steps      VehicleStep[]

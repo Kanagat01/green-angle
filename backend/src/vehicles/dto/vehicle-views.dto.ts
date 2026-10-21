@@ -41,8 +41,43 @@ export class VehicleListItemDto {
   @ApiProperty({ type: VehicleClientDto })
   client: VehicleClientDto;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Заявка, из которой создана машина («Диалог по заявке»); null — машину завели вручную',
+  })
+  requestId: string | null;
+
+  @ApiProperty({ description: 'Вложений на всех шагах' })
+  attachmentsCount: number;
+
   @ApiProperty()
   createdAt: Date;
+
+  @ApiProperty({
+    description:
+      'Последняя смена статуса или правка названия / VIN («Обновлено»)',
+  })
+  updatedAt: Date;
+}
+
+/** Счётчики для вкладок и фильтров; считаются по всем доступным машинам, без учёта фильтров списка. */
+export class VehicleCountsDto {
+  @ApiProperty({ description: 'Все машины' })
+  all: number;
+
+  @ApiProperty({ description: 'В пути: шаги 1–12' })
+  active: number;
+
+  @ApiProperty({ description: 'Готовы к выдаче: шаг 13' })
+  ready: number;
+
+  @ApiProperty({ description: 'Владелец — компания по привозу' })
+  company: number;
+
+  @ApiProperty({ description: 'Владелец — физ.лицо' })
+  person: number;
 }
 
 export class VehicleListDto {
@@ -51,6 +86,9 @@ export class VehicleListDto {
 
   @ApiProperty({ description: 'Всего записей по фильтру' })
   total: number;
+
+  @ApiProperty({ type: VehicleCountsDto })
+  counts: VehicleCountsDto;
 }
 
 export class StepAttachmentDto {
