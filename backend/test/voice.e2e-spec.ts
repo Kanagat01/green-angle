@@ -76,11 +76,12 @@ describe('Voice messages (e2e)', () => {
       title: `Voice ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    const id = res.json<RequestView>().id;
-    // Здесь проверяются голосовые; первое сообщение заявки — в request-first-message
-    await prisma.message.deleteMany({ where: { requestId: id } });
-    return id;
+    return res.json<RequestView>().id;
   }
+
+  /** Голосовых сообщений в заявке (первое сообщение самой заявки — текстовое и не в счёт) */
+  const voiceCount = (reqId: string) =>
+    prisma.message.count({ where: { requestId: reqId, type: 'VOICE' } });
 
   const voiceUrl = (reqId: string, token: string | null, payload: object) =>
     call('POST', `/requests/${reqId}/voice-upload-url`, token, payload);
@@ -263,7 +264,7 @@ describe('Voice messages (e2e)', () => {
         durationSec: 10,
       });
       expect(res.statusCode).toBe(400);
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(0);
+      expect(await voiceCount(id)).toBe(0);
     });
 
     it("rejects someone else's key and a key of another kind", async () => {
@@ -370,19 +371,22 @@ describe('Voice messages (e2e)', () => {
       ).json<{
         items: Message[];
       }>();
-      expect(list.items).toHaveLength(1);
-      expect(list.items[0].isMine).toBe(false);
-      const playback = await transfer(app, list.items[0].attachments[0].url);
+      // в ленте сама заявка и голосовое; воспроизводится голосовое
+      const voice = list.items.filter((m) => m.type === 'VOICE');
+      expect(list.items).toHaveLength(2);
+      expect(voice).toHaveLength(1);
+      expect(voice[0].isMine).toBe(false);
+      const playback = await transfer(app, voice[0].attachments[0].url);
       expect(playback.ok).toBe(true);
       expect(
         Buffer.from(await playback.arrayBuffer()).equals(clientAudio),
       ).toBe(true);
 
-      // непрочитанное считается и для голосовых
+      // непрочитанное считается и для голосовых: сама заявка и голосовое
       const unread = (
         await call('GET', `/requests/${id}`, tokens.admin)
       ).json<RequestView>();
-      expect(unread.unreadCount).toBe(1);
+      expect(unread.unreadCount).toBe(2);
 
       // ответ менеджера голосовым переводит заявку NEW → IN_DIALOG
       expect(
@@ -445,7 +449,7 @@ describe('Voice messages (e2e)', () => {
       expect((await postMessage(id, tokens.broker, payload)).statusCode).toBe(
         409,
       );
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(1);
+      expect(await voiceCount(id)).toBe(1);
     });
 
     it('does not let a user reference a recording uploaded by someone else', async () => {
@@ -502,7 +506,7 @@ describe('Voice messages (e2e)', () => {
         });
         return {
           res,
-          messages: await prisma.message.count({ where: { requestId: id } }),
+          messages: await voiceCount(id),
           attachments: await prisma.attachment.count({ where: { key } }),
         };
       }

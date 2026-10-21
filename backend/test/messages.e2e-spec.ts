@@ -68,10 +68,7 @@ describe('Request dialog (e2e)', () => {
       title: `Dialog ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    const id = res.json<RequestView>().id;
-    // Здесь проверяется запись и чтение диалога с пустого листа; первое сообщение заявки — в request-first-message
-    await prisma.message.deleteMany({ where: { requestId: id } });
-    return id;
+    return res.json<RequestView>().id;
   }
 
   const post = (reqId: string, token: string | null, payload: object) =>
@@ -238,7 +235,8 @@ describe('Request dialog (e2e)', () => {
       expect((await post(id, tokens.admin, { text: 'после' })).statusCode).toBe(
         409,
       );
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(1);
+      // сама заявка и «до одобрения»; «после» не записано
+      expect(await prisma.message.count({ where: { requestId: id } })).toBe(2);
     });
 
     it('still lets everyone read and mark as read', async () => {
@@ -252,7 +250,8 @@ describe('Request dialog (e2e)', () => {
       for (const token of [tokens.broker, tokens.admin]) {
         const res = await call('GET', `/requests/${id}/messages`, token);
         expect(res.statusCode).toBe(200);
-        expect(res.json<MessageList>().items).toHaveLength(1);
+        // сама заявка и «сообщение»
+        expect(res.json<MessageList>().items).toHaveLength(2);
       }
       expect(
         (await call('POST', `/requests/${id}/read`, tokens.admin)).statusCode,
@@ -339,23 +338,26 @@ describe('Request dialog (e2e)', () => {
       const asBroker = await page('');
       expect(asBroker.items.map((m) => m.id)).toEqual(expectedOrder);
       expect(asBroker.hasMore).toBe(false);
-      expect(asBroker.items.filter((m) => m.isMine).length).toBe(4);
+      // клиенту принадлежат сама заявка и сообщения 1, 3, 5, 7; менеджеру — 2, 4, 6
+      expect(asBroker.items.filter((m) => m.isMine).length).toBe(5);
 
       const asAdmin = await page('', tokens.admin);
       expect(asAdmin.items.filter((m) => m.isMine).length).toBe(3);
     });
 
     it('pages backwards with the before cursor without gaps or duplicates', async () => {
+      // всего восемь сообщений: заявка и msg 1–7
+      expect(expectedOrder).toHaveLength(8);
       const first = await page('?limit=3');
-      expect(first.items.map((m) => m.id)).toEqual(expectedOrder.slice(4));
+      expect(first.items.map((m) => m.id)).toEqual(expectedOrder.slice(5));
       expect(first.hasMore).toBe(true);
 
       const second = await page(`?limit=3&before=${first.items[0].id}`);
-      expect(second.items.map((m) => m.id)).toEqual(expectedOrder.slice(1, 4));
+      expect(second.items.map((m) => m.id)).toEqual(expectedOrder.slice(2, 5));
       expect(second.hasMore).toBe(true);
 
       const third = await page(`?limit=3&before=${second.items[0].id}`);
-      expect(third.items.map((m) => m.id)).toEqual(expectedOrder.slice(0, 1));
+      expect(third.items.map((m) => m.id)).toEqual(expectedOrder.slice(0, 2));
       expect(third.hasMore).toBe(false);
     });
 
@@ -405,19 +407,20 @@ describe('Request dialog (e2e)', () => {
       const id = await newRequest();
       await post(id, tokens.broker, { text: 'мой вопрос' });
       expect((await getRequest(id, tokens.broker)).unreadCount).toBe(0); // свои не считаются
-      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(1);
+      // менеджеру не прочитаны сама заявка и вопрос
+      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(2);
 
       await post(id, tokens.admin, { text: 'ответ 1' });
       await post(id, tokens.admin, { text: 'ответ 2' });
       expect((await getRequest(id, tokens.broker)).unreadCount).toBe(2);
-      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(1);
+      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(2);
 
       const read = await call('POST', `/requests/${id}/read`, tokens.broker);
       expect(read.statusCode).toBe(200);
       expect(read.json()).toEqual({ unreadCount: 0 });
       expect((await getRequest(id, tokens.broker)).unreadCount).toBe(0);
       // у менеджера свой счётчик, он не затронут
-      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(1);
+      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(2);
     });
 
     it('is idempotent and picks up messages that arrive afterwards', async () => {
@@ -434,12 +437,13 @@ describe('Request dialog (e2e)', () => {
     it('is tracked per user, also between managers', async () => {
       const id = await newRequest();
       await post(id, tokens.broker, { text: 'вопрос' });
-      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(1);
-      expect((await getRequest(id, tokens.admin2)).unreadCount).toBe(1);
+      // каждому менеджеру не прочитаны заявка и вопрос
+      expect((await getRequest(id, tokens.admin)).unreadCount).toBe(2);
+      expect((await getRequest(id, tokens.admin2)).unreadCount).toBe(2);
 
       await call('POST', `/requests/${id}/read`, tokens.admin);
       expect((await getRequest(id, tokens.admin)).unreadCount).toBe(0);
-      expect((await getRequest(id, tokens.admin2)).unreadCount).toBe(1);
+      expect((await getRequest(id, tokens.admin2)).unreadCount).toBe(2);
     });
 
     it('is reported in request lists', async () => {
@@ -458,7 +462,8 @@ describe('Request dialog (e2e)', () => {
       ).json<{
         items: (RequestView & { id: string })[];
       }>();
-      expect(queue.items.find((r) => r.id === id)?.unreadCount).toBe(0);
+      // менеджеру не прочитана только сама заявка: ответ он написал сам
+      expect(queue.items.find((r) => r.id === id)?.unreadCount).toBe(1);
     });
 
     it('totals unread messages across the user requests only', async () => {
@@ -540,7 +545,10 @@ describe('Request dialog (e2e)', () => {
       const list = (
         await call('GET', `/requests/${id}/messages`, tokens.admin)
       ).json<MessageList>();
-      const download = await transfer(app, list.items[0].attachments[0].url);
+      const download = await transfer(
+        app,
+        list.items.at(-1)!.attachments[0].url,
+      );
       expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
     });
 
@@ -562,7 +570,13 @@ describe('Request dialog (e2e)', () => {
         ],
       });
       expect(res.statusCode).toBe(400);
-      expect(await prisma.message.count({ where: { requestId: id } })).toBe(0);
+      // осталось только первое сообщение самой заявки
+      expect(await prisma.message.count({ where: { requestId: id } })).toBe(1);
+      expect(
+        await prisma.message.count({
+          where: { requestId: id, text: 'с битым вложением' },
+        }),
+      ).toBe(0);
       expect(await prisma.attachment.count({ where: { key: good } })).toBe(0);
     });
 

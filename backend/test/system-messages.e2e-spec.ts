@@ -43,10 +43,7 @@ describe('System messages in the dialog (e2e)', () => {
       title: `System ${fx.tag}`,
     });
     expect(res.statusCode).toBe(201);
-    const id = res.json<{ id: string }>().id;
-    // Считаем только то, что пишется по ходу дела; первое сообщение заявки — в request-first-message
-    await prisma.message.deleteMany({ where: { requestId: id } });
-    return id;
+    return res.json<{ id: string }>().id;
   }
   const messages = async (id: string, token = tokens.broker) =>
     (await call('GET', `/requests/${id}/messages`, token)).json<{
@@ -240,8 +237,9 @@ describe('System messages in the dialog (e2e)', () => {
       await call('POST', `/requests/${id}/messages`, tokens.admin, {
         text: 'Есть варианты',
       });
+      // менеджеру не прочитано: сама заявка и «Нужен Haval»; клиенту — «Есть варианты»
       expect(await unread(id, tokens.broker)).toBe(1);
-      expect(await unread(id, tokens.admin)).toBe(1);
+      expect(await unread(id, tokens.admin)).toBe(2);
 
       const approved = await approve(id);
       await changeStatus(
@@ -251,14 +249,19 @@ describe('System messages in the dialog (e2e)', () => {
       expect(await system(id)).toHaveLength(2);
 
       expect(await unread(id, tokens.broker)).toBe(1);
-      expect(await unread(id, tokens.admin)).toBe(1);
+      expect(await unread(id, tokens.admin)).toBe(2);
     });
 
-    it('lets a request with only system lines be fully read', async () => {
+    it('leaves nothing unread once the people have read their messages, system lines or not', async () => {
       const id = await newRequest();
       await approve(id);
+      // от клиента остаётся только сама заявка: её не прочитал менеджер
       expect(await unread(id, tokens.broker)).toBe(0);
+      expect(await unread(id, tokens.admin)).toBe(1);
+
+      await call('POST', `/requests/${id}/read`, tokens.admin);
       expect(await unread(id, tokens.admin)).toBe(0);
+
       const before = await total(tokens.broker);
       await call('POST', `/requests/${id}/read`, tokens.broker);
       expect(await total(tokens.broker)).toBe(before);

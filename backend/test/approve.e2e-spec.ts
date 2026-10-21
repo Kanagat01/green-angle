@@ -57,10 +57,7 @@ describe('Request approval (e2e)', () => {
       yearFrom: 2023,
     });
     expect(res.statusCode).toBe(201);
-    const id = res.json<RequestView>().id;
-    // Этот набор проверяет одобрение и диалог, а не первое сообщение заявки (оно в request-first-message)
-    await prisma.message.deleteMany({ where: { requestId: id } });
-    return id;
+    return res.json<RequestView>().id;
   }
   const approve = (id: string, token: string | null = tokens.admin) =>
     call('POST', `/admin/requests/${id}/approve`, token);
@@ -310,9 +307,12 @@ describe('Request approval (e2e)', () => {
       }
       const list = await call('GET', `/requests/${id}/messages`, tokens.broker);
       expect(list.statusCode).toBe(200);
-      // кроме «до» в ленте только служебная строка об одобрении
-      const items = list.json<{ items: { type: string }[] }>().items;
-      expect(items.filter((m) => m.type !== 'SYSTEM')).toHaveLength(1);
+      // в ленте: сама заявка, «до» и служебная строка об одобрении; «после» не попало
+      const items = list.json<{ items: { type: string; text: string }[] }>()
+        .items;
+      expect(
+        items.filter((m) => m.type !== 'SYSTEM').map((m) => m.text),
+      ).toEqual([expect.stringContaining('Новая заявка'), 'до']);
       expect(items.filter((m) => m.type === 'SYSTEM')).toHaveLength(1);
     });
 
@@ -330,7 +330,8 @@ describe('Request approval (e2e)', () => {
       for (const r of results.slice(1))
         expect([201, 409]).toContain(r.statusCode);
 
-      // каждое принятое (201) сообщение сохранено, а отклонённые (409) — нет
+      // каждое принятое (201) сообщение сохранено, а отклонённые (409) — нет;
+      // к ним добавляется первое сообщение самой заявки
       const accepted = results
         .slice(1)
         .filter((r) => r.statusCode === 201).length;
@@ -338,7 +339,7 @@ describe('Request approval (e2e)', () => {
         await prisma.message.count({
           where: { requestId: id, type: { not: 'SYSTEM' } },
         }),
-      ).toBe(accepted);
+      ).toBe(accepted + 1);
 
       // после одобрения писать уже нельзя
       expect(
