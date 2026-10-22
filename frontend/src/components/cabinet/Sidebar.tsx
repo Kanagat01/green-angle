@@ -6,6 +6,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { api, type Schemas } from "@/lib/api/client";
 import { useRequestCounts, useUnreadTotal } from "@/lib/api/queries";
 import { NavLink, type Route } from "@/lib/nav";
+import { usePush } from "@/lib/push";
 import { useLogout, useSession, type Me } from "@/lib/session";
 import type { Role } from "@/lib/types";
 
@@ -55,6 +56,7 @@ export function Sidebar() {
   const vehicles = useVehicleTotal(admin);
   const unread = useUnreadTotal();
   const counts = useRequestCounts(admin);
+  const push = usePush();
   if (session.status !== "authed") return null;
   const { role, me } = session;
 
@@ -126,6 +128,16 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="side-tools" style={{ flexDirection: "column", alignItems: "flex-start", gap: 0 }}>
+        {(push.state === "off" || push.state === "on" || push.state === "busy" || push.state === "denied") && (
+          <button
+            type="button"
+            className="btn btn-plain btn-sm"
+            disabled={push.state === "busy"}
+            onClick={() => void (push.state === "on" ? push.disable() : push.enable())}
+          >
+            {push.state === "on" ? "Выключить уведомления" : "Включить уведомления"}
+          </button>
+        )}
         <button type="button" className="btn btn-plain btn-sm" onClick={() => void leave()}>
           Выйти
         </button>

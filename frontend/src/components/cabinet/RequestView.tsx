@@ -17,6 +17,7 @@ import {
 import { ACCEPT_ALL, kindOfFile, uploadFile, type UploadKind } from "@/lib/api/uploads";
 import { messageAttachments } from "@/lib/attachments";
 import { dateFull, dateTime, money, ownerKindLabel, reqTitle } from "@/lib/format";
+import { joinRequestRoom } from "@/lib/realtime";
 import { NavLink, useRedirectWhen } from "@/lib/nav";
 import { useRole } from "@/lib/session";
 import { toast } from "@/lib/store";
@@ -59,6 +60,9 @@ export function RequestView({ id }: { id: string }) {
 
   const denied = !mgr && error instanceof ApiError && (error.status === 404 || error.status === 403);
   useRedirectWhen(denied, "/requests");
+
+  // Пока диалог открыт, сервер присылает его новые сообщения сразу
+  useEffect(() => joinRequestRoom(id), [id]);
 
   const threadRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLInputElement>(null);

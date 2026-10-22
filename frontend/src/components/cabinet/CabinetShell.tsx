@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useSession } from "@/lib/session";
 import type { Role } from "@/lib/types";
+import { Realtime } from "./Realtime";
 import { Sidebar } from "./Sidebar";
 
 const CLIENT_PREFIXES = ["/cars", "/requests"];
@@ -47,6 +48,7 @@ export function CabinetShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app" id="app">
+      <Realtime />
       <Sidebar />
       <main id="main" tabIndex={-1}>
         {redirect ? null : children}

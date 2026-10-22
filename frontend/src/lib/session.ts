@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, type Schemas } from "./api/client";
 import { clearTokens, readTokens, writeTokens } from "./api/tokens";
+import { dropPushSubscription } from "./push";
 import { bumpAuth, useApp } from "./store";
 import type { Role } from "./types";
 
@@ -85,6 +86,8 @@ export function useLogout() {
   const client = useQueryClient();
   return async () => {
     const tokens = readTokens();
+    // Пока токены есть: этому браузеру больше не нужны уведомления прежнего пользователя
+    await dropPushSubscription();
     if (tokens) {
       // Сервер отзывает refresh-токен; если связи нет, из браузера всё равно выходим
       await api("/auth/logout", { method: "POST", body: { refreshToken: tokens.refreshToken }, anonymous: true }).catch(() => undefined);
