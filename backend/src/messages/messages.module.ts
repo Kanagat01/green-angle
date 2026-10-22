@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AudioModule } from '../audio/audio.module.js';
+import { PushModule } from '../push/push.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { MessagesController } from './messages.controller.js';
 import { MessagesService } from './messages.service.js';
 
 @Module({
-  imports: [StorageModule, AudioModule],
+  imports: [StorageModule, AudioModule, PushModule],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],

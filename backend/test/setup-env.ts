@@ -43,6 +43,10 @@ process.env.SMTP_HOST = '';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASS = '';
 process.env.APP_URL = 'http://localhost:3001';
+// Push в тестах тоже не уходит наружу: отправитель-заглушка записывает уведомления в память
+process.env.VAPID_PUBLIC_KEY = '';
+process.env.VAPID_PRIVATE_KEY = '';
+process.env.VAPID_SUBJECT = '';
 process.env.MAIL_FROM = 'Green Angle <noreply@test.local>';
 // Тесты не зависят от CORS/прокси, заданных в локальном .env
 process.env.CORS_ORIGINS = '';

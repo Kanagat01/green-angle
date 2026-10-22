@@ -53,6 +53,10 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is required}
       APP_URL: ${APP_URL:?APP_URL is required}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?VAPID_PUBLIC_KEY is required}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?VAPID_PRIVATE_KEY is required}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?VAPID_SUBJECT is required}
+      PUSH_FALLBACK_MINUTES: ${PUSH_FALLBACK_MINUTES:-60}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
     volumes: [uploads:/data/uploads]

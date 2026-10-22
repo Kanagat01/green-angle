@@ -64,6 +64,16 @@ describe('OpenAPI document (e2e)', () => {
     );
   });
 
+  it('describes the push subscription endpoints', () => {
+    expect(doc.paths['/api/v1/me/push/public-key']?.get).toBeDefined();
+    expect(doc.paths['/api/v1/me/push-subscriptions']?.post).toBeDefined();
+    expect(doc.paths['/api/v1/me/push-subscriptions']?.delete).toBeDefined();
+    expect(props('SubscribePushDto')).toEqual(['endpoint', 'keys']);
+    expect(props('PushKeysDto')).toEqual(['p256dh', 'auth']);
+    expect(props('UnsubscribePushDto')).toEqual(['endpoint']);
+    expect(props('PushConfigDto')).toEqual(['enabled', 'publicKey']);
+  });
+
   it('describes registration, verification and the closed login', () => {
     for (const path of ['register', 'verify-email', 'resend-verification']) {
       expect(doc.paths[`/api/v1/auth/${path}`]?.post, path).toBeDefined();

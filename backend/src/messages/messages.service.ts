@@ -19,6 +19,7 @@ import {
   Role,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { PushService } from '../push/push.service.js';
 import type { SharedMessage } from '../realtime/realtime.events.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import {
@@ -63,6 +64,7 @@ export class MessagesService {
     private readonly storage: StorageService,
     private readonly realtime: RealtimeService,
     private readonly audioProbe: AudioProbeService,
+    private readonly push: PushService,
   ) {}
 
   /** Лента сообщений: страница до курсора `before` (или последние), от старых к новым. */
@@ -152,11 +154,14 @@ export class MessagesService {
         });
 
         let status: RequestStatus = locked.status;
-        if (user.role === Role.ADMIN && locked.status === RequestStatus.NEW) {
-          status = RequestStatus.IN_DIALOG;
+        if (user.role === Role.ADMIN) {
+          if (locked.status === RequestStatus.NEW) {
+            status = RequestStatus.IN_DIALOG;
+          }
+          // Ответственный за заявку — сотрудник, ответивший в ней последним
           await tx.request.update({
             where: { id: requestId },
-            data: { status },
+            data: { status, assigneeId: user.id },
           });
         }
 
@@ -172,6 +177,7 @@ export class MessagesService {
       // События — только после коммита: подписчики не должны увидеть то, чего потом нет в БД
       const shared = await this.toShared(created.message);
       this.realtime.messageCreated({ message: shared });
+      this.push.notifyMessage(created.message.id);
       this.realtime.requestUpdated({
         requestId,
         clientId: request.clientId,
@@ -285,6 +291,8 @@ export class MessagesService {
     });
     for (const row of rows) {
       this.realtime.messageCreated({ message: await this.toShared(row) });
+      // служебные строки push не вызывают (сервис их пропускает); комментарий менеджера — вызывает
+      this.push.notifyMessage(row.id);
     }
   }
 

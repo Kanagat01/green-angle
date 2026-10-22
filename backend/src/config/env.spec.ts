@@ -7,10 +7,16 @@ const base = {
   FILES_SIGNING_SECRET: 'files-secret-cccccccccccc',
 };
 
-/** Настройки почты, обязательные в production */
+/** Почта и push, обязательные в production */
 const mail = {
   SMTP_HOST: 'smtp.example.com',
   APP_URL: 'https://app.example.com',
+};
+
+const vapid = {
+  VAPID_PUBLIC_KEY: 'public-key-public-key-public-key',
+  VAPID_PRIVATE_KEY: 'private-key-private-key-private-key',
+  VAPID_SUBJECT: 'mailto:ops@example.com',
 };
 
 const s3 = {
@@ -98,6 +104,7 @@ describe('validateEnv', () => {
     const prod = {
       ...base,
       ...mail,
+      ...vapid,
       NODE_ENV: 'production',
       REDIS_URL: 'redis://redis:6379',
       FFPROBE_PATH: 'ffprobe',
@@ -188,14 +195,62 @@ describe('validateEnv', () => {
     });
   });
 
+  describe('push', () => {
+    it('is off by default and falls back after an hour', () => {
+      const env = validateEnv({ ...base, VAPID_PUBLIC_KEY: '' });
+      expect(env.VAPID_PUBLIC_KEY).toBeUndefined();
+      expect(env.PUSH_FALLBACK_MINUTES).toBe(60);
+    });
+
+    it('reads the VAPID keys and the fallback delay', () => {
+      const env = validateEnv({
+        ...base,
+        ...vapid,
+        PUSH_FALLBACK_MINUTES: '15',
+      });
+      expect(env).toMatchObject({ ...vapid, PUSH_FALLBACK_MINUTES: 15 });
+      expect(
+        validateEnv({ ...base, ...vapid, VAPID_SUBJECT: 'https://example.com' })
+          .VAPID_SUBJECT,
+      ).toBe('https://example.com');
+    });
+
+    it('rejects a partial set of keys', () => {
+      expect(() =>
+        validateEnv({ ...base, VAPID_PUBLIC_KEY: vapid.VAPID_PUBLIC_KEY }),
+      ).toThrow(/all of VAPID_PUBLIC_KEY/);
+      expect(() =>
+        validateEnv({ ...base, ...vapid, VAPID_PRIVATE_KEY: '' }),
+      ).toThrow(/all of VAPID_PUBLIC_KEY/);
+    });
+
+    it('rejects a subject that is neither mailto: nor https', () => {
+      expect(() =>
+        validateEnv({ ...base, ...vapid, VAPID_SUBJECT: 'ops@example.com' }),
+      ).toThrow(/VAPID_SUBJECT/);
+      expect(() =>
+        validateEnv({ ...base, ...vapid, PUSH_FALLBACK_MINUTES: '0' }),
+      ).toThrow(/PUSH_FALLBACK_MINUTES/);
+    });
+  });
+
   describe('in production', () => {
     const prod = {
       ...base,
       ...mail,
+      ...vapid,
       NODE_ENV: 'production',
       REDIS_URL: 'redis://redis:6379',
       FFPROBE_PATH: 'ffprobe',
     };
+
+    it('requires all three VAPID settings (push notifications)', () => {
+      for (const key of Object.keys(vapid)) {
+        expect(() => validateEnv({ ...prod, [key]: undefined })).toThrow(
+          /VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT are required/,
+        );
+      }
+    });
 
     it('requires SMTP_HOST and APP_URL (verification emails and their links)', () => {
       expect(() => validateEnv({ ...prod, SMTP_HOST: undefined })).toThrow(

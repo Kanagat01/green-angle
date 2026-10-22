@@ -14,6 +14,7 @@ import {
 } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { PushService } from '../push/push.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { initialSteps, stepTitle } from '../vehicles/steps.catalog.js';
 import { VehiclesService } from '../vehicles/vehicles.service.js';
@@ -52,6 +53,7 @@ export class RequestsService {
     private readonly messages: MessagesService,
     private readonly vehicles: VehiclesService,
     private readonly realtime: RealtimeService,
+    private readonly push: PushService,
   ) {}
 
   /** Заявка на подбор от имени своего клиента. Статус всегда NEW. */
@@ -88,6 +90,12 @@ export class RequestsService {
       reason: 'CREATED',
       at: created.createdAt.toISOString(),
     });
+    // Новая заявка — это первое сообщение клиента: сотрудникам уходит push
+    const first = await this.prisma.message.findFirst({
+      where: { requestId: created.id },
+      select: { id: true },
+    });
+    if (first) this.push.notifyMessage(first.id);
     return this.get(user, created.id);
   }
 

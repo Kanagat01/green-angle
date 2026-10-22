@@ -105,6 +105,29 @@ export const envSchema = z
     /** Срок действия ссылки подтверждения email, часы */
     EMAIL_VERIFICATION_TTL_HOURS: positiveInt(24),
 
+    /**
+     * Push-уведомления (Web Push) о сообщениях в диалоге. Ключи VAPID: `pnpm exec web-push
+     * generate-vapid-keys`. Без ключей push выключен (уведомления только пишутся в лог);
+     * в production обязателен.
+     */
+    VAPID_PUBLIC_KEY: emptyToUndefined(z.string().min(20).optional()),
+    VAPID_PRIVATE_KEY: emptyToUndefined(z.string().min(20).optional()),
+    /** `mailto:адрес` или https-адрес сайта: куда пушевые сервисы пишут о проблемах */
+    VAPID_SUBJECT: emptyToUndefined(
+      z
+        .string()
+        .refine(
+          (s) => /^mailto:.+@.+/.test(s) || /^https:\/\//.test(s),
+          'must be mailto:address or an https URL',
+        )
+        .optional(),
+    ),
+    /**
+     * Через сколько минут сообщение клиента, оставшееся без ответа, повторно уходит всем
+     * сотрудникам (если у заявки уже есть ответственный).
+     */
+    PUSH_FALLBACK_MINUTES: positiveInt(60),
+
     /** Разрешённые Origin для CORS и Socket.IO через запятую; пусто — кросс-доменные запросы запрещены */
     CORS_ORIGINS: z
       .string()
@@ -192,6 +215,14 @@ export const envSchema = z
           'is required in production (verification and notification emails)',
       });
     }
+    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VAPID_PUBLIC_KEY'],
+        message:
+          'VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT are required in production (push notifications)',
+      });
+    }
     if (!env.APP_URL) {
       ctx.addIssue({
         code: 'custom',
@@ -224,6 +255,22 @@ export const envSchema = z
         code: 'custom',
         path: ['S3_SECRET_KEY'],
         message: 'default value is not allowed in production',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    // Ключи без пары бесполезны и скрывают ошибку настройки
+    const provided = [
+      env.VAPID_PUBLIC_KEY,
+      env.VAPID_PRIVATE_KEY,
+      env.VAPID_SUBJECT,
+    ].filter(Boolean).length;
+    if (provided > 0 && provided < 3 && env.NODE_ENV !== 'production') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['VAPID_PUBLIC_KEY'],
+        message:
+          'set all of VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT, or none',
       });
     }
   })
