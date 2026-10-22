@@ -488,6 +488,30 @@ describe('Request dialog (e2e)', () => {
       expect(await total(tokens.individual)).toBe(before);
     });
 
+    it('totals unread messages of all clients for a manager, per manager', async () => {
+      const total = async (token: string) =>
+        (await call('GET', '/requests/unread-count', token)).json<{
+          unreadCount: number;
+        }>().unreadCount;
+
+      const adminBefore = await total(tokens.admin);
+      const admin2Before = await total(tokens.admin2);
+      const fromBroker = await newRequest(tokens.broker);
+      const fromIndividual = await newRequest(tokens.individual);
+      const afterNew = await total(tokens.admin);
+      expect(afterNew).toBeGreaterThan(adminBefore);
+
+      await post(fromBroker, tokens.broker, { text: 'ещё одно' });
+      await post(fromIndividual, tokens.individual, { text: 'и ещё' });
+      expect(await total(tokens.admin)).toBe(afterNew + 2);
+
+      // прочтение одним менеджером не уменьшает счётчик другого
+      await call('POST', `/requests/${fromBroker}/read`, tokens.admin);
+      await call('POST', `/requests/${fromIndividual}/read`, tokens.admin);
+      expect(await total(tokens.admin)).toBeLessThanOrEqual(afterNew - 2);
+      expect(await total(tokens.admin2)).toBeGreaterThan(admin2Before);
+    });
+
     it('requires authentication for the total', async () => {
       expect(
         (await call('GET', '/requests/unread-count', null)).statusCode,
