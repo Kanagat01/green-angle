@@ -35,7 +35,7 @@ docker-compose.prod.yml   боевой запуск: Caddy + API + Postgres + м
 ### Всё в контейнерах
 
 ```bash
-docker compose up -d --build        # Postgres, Redis, миграции, API на :3000 (файлы — в томе uploads)
+docker compose up -d --build        # Postgres, Redis, миграции, API на :4000 (файлы — в томе uploads)
 ```
 
 Драйвер S3 вместо диска: `docker compose --profile s3 up -d` и `STORAGE_DRIVER=s3` у API.
@@ -54,8 +54,8 @@ pnpm prisma db seed                 # демо-данные (только для
 pnpm start:dev
 ```
 
-- API: `http://localhost:3000/api/v1`
-- Swagger (OpenAPI): `http://localhost:3000/api/docs` — по нему фронт генерирует типизированный клиент
+- API: `http://localhost:4000/api/v1`
+- Swagger (OpenAPI): `http://localhost:4000/api/docs` — по нему фронт генерирует типизированный клиент
 - Проверка: `GET /api/v1/health` (живость), `GET /api/v1/health/ready` (база, хранилище файлов, Redis)
 - Загруженные файлы при локальном запуске лежат в `backend/data/uploads` (`UPLOAD_DIR`); при драйвере S3 консоль MinIO — `http://localhost:9001` (`minio` / `minio12345`)
 
@@ -101,7 +101,7 @@ STORAGE_DRIVER=s3 pnpm test:e2e         # то же на драйвере S3 (н
 | Переменная | По умолчанию | Назначение |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | В `production` запрещены заглушки секретов (`change-me*`, `minio12345`) |
-| `PORT` | `3000` | Порт API |
+| `PORT` | `4000` | Порт API |
 | `LOG_LEVEL` | `info` | `fatal` … `trace` |
 | `TRUST_PROXY` | `false` | `true` за Caddy/nginx — IP клиента берётся из `X-Forwarded-For` |
 | `SWAGGER_ENABLED` | вкл., кроме production | Документация на `/api/docs` |
@@ -117,7 +117,7 @@ STORAGE_DRIVER=s3 pnpm test:e2e         # то же на драйвере S3 (н
 | `UPLOAD_URL_TTL_SEC`, `DOWNLOAD_URL_TTL_SEC` | `900`, `3600` | Срок жизни ссылок загрузки / скачивания (оба драйвера) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | пусто, `587` | Исходящая почта (подтверждение email, уведомления). Без `SMTP_HOST` письма пишутся только в лог API. **`SMTP_HOST` обязателен в production** |
 | `MAIL_FROM` | `Green Angle <noreply@localhost>` | Отправитель писем |
-| `APP_URL` | `http://localhost:3001` в разработке | Адрес фронтенда для ссылок в письмах. **Обязателен в production** |
+| `APP_URL` | `http://localhost:3000` в разработке | Адрес фронтенда для ссылок в письмах. **Обязателен в production** |
 | `EMAIL_VERIFICATION_TTL_HOURS` | `24` | Срок действия ссылки подтверждения |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | пусто | Ключи Web Push (`pnpm exec web-push generate-vapid-keys` в `backend/`) и `mailto:адрес` или https-адрес сайта. Задаются все три или ни одного. **Обязательны в production** |
 | `PUSH_FALLBACK_MINUTES` | `60` | Через сколько минут сообщение клиента без ответа повторно уходит всем сотрудникам |

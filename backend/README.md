@@ -5,5 +5,5 @@ NestJS 12 API платформы Green Angle. Запуск, настройки, 
 ```bash
 pnpm install
 pnpm prisma generate
-pnpm start:dev        # http://localhost:3000/api/docs
+pnpm start:dev        # http://localhost:4000/api/docs
 ```

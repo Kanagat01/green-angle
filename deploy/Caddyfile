@@ -2,5 +2,5 @@
 # автоматически. Caddy сам добавляет X-Forwarded-For — API (TRUST_PROXY=true) берёт IP клиента оттуда.
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy api:3000
+	reverse_proxy api:4000
 }

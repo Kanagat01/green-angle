@@ -30,7 +30,7 @@ services:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
       FFPROBE_PATH: ffprobe
-      PORT: 3000
+      PORT: 4000
       TRUST_PROXY: 'true'
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgresql://green:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/green_angle?schema=public
@@ -60,7 +60,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
     volumes: [uploads:/data/uploads]
-    expose: ['3000']
+    expose: ['4000']
 
   migrate:
     build:

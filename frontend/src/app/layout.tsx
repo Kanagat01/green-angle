@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ModalHost } from "@/components/modals/ModalHost";
+import { QueryProvider } from "@/components/QueryProvider";
 import { StoreHydrator } from "@/components/StoreHydrator";
 import { Toast } from "@/components/ui/Toast";
 import "@/styles/tokens.scss";
@@ -29,10 +30,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body>
-        <StoreHydrator />
-        {children}
-        <ModalHost />
-        <Toast />
+        <QueryProvider>
+          <StoreHydrator />
+          {children}
+          <ModalHost />
+          <Toast />
+        </QueryProvider>
       </body>
     </html>
   );

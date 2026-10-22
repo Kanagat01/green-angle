@@ -304,7 +304,7 @@ describe('Push notifications about dialog messages (e2e)', () => {
       expect(one.payload).toMatchObject({
         title: 'HUATECH',
         body: `Новое сообщение по заявке «Push ${fx.tag}»`,
-        url: `http://localhost:3001/requests/${id}`,
+        url: `http://localhost:3000/requests/${id}`,
         requestId: id,
         tag: `request-${id}`,
       });
@@ -396,7 +396,7 @@ describe('Push notifications about dialog messages (e2e)', () => {
       await say(id, tokens.broker, 'Есть новости?');
       expect(deliveredTo(id).sort()).toEqual([first, second].sort());
       expect(pushesFor(id, first)[0].payload.url).toBe(
-        `http://localhost:3001/admin/requests/${id}`,
+        `http://localhost:3000/admin/requests/${id}`,
       );
     });
 
@@ -474,7 +474,7 @@ describe('Push notifications about dialog messages (e2e)', () => {
       expect(deliveredTo(id)).not.toContain(first);
       expect(pushesFor(id, second)[0].payload).toMatchObject({
         body: `Заявка «Push ${fx.tag}» ждёт ответа`,
-        url: `http://localhost:3001/admin/requests/${id}`,
+        url: `http://localhost:3000/admin/requests/${id}`,
       });
 
       // второй раз то же сообщение не рассылается

@@ -38,7 +38,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     private readonly sender: PushSender,
     config: ConfigService,
   ) {
-    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3001';
+    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3000';
     this.fallbackMs =
       config.getOrThrow<number>('PUSH_FALLBACK_MINUTES') * 60_000;
     // В тестах проверку запускают вручную: фоновый таймер сделал бы их недетерминированными

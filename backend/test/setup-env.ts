@@ -42,7 +42,7 @@ process.env.FFPROBE_PATH = (
 process.env.SMTP_HOST = '';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASS = '';
-process.env.APP_URL = 'http://localhost:3001';
+process.env.APP_URL = 'http://localhost:3000';
 // Push в тестах тоже не уходит наружу: отправитель-заглушка записывает уведомления в память
 process.env.VAPID_PUBLIC_KEY = '';
 process.env.VAPID_PRIVATE_KEY = '';

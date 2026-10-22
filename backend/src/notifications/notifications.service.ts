@@ -23,7 +23,7 @@ export class NotificationsService {
     private readonly mail: MailService,
     config: ConfigService,
   ) {
-    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3001';
+    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3000';
   }
 
   /** Письмо о переходе на этап `step`; вызывать после коммита транзакции. */

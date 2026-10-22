@@ -12,12 +12,12 @@ import {
 } from './helpers.js';
 
 const ALLOWED = 'https://app.example.com';
-const ALSO_ALLOWED = 'http://localhost:3001';
+const ALSO_ALLOWED = 'http://localhost:3000';
 const FOREIGN = 'https://evil.example.org';
 
 // Выполняется до импортов: ConfigModule видит белый список Origin при валидации env
 vi.hoisted(() => {
-  process.env.CORS_ORIGINS = 'https://app.example.com, http://localhost:3001';
+  process.env.CORS_ORIGINS = 'https://app.example.com, http://localhost:3000';
 });
 
 describe('Hardening (e2e)', () => {

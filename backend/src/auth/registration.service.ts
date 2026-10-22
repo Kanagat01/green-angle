@@ -26,7 +26,7 @@ export class RegistrationService {
   ) {
     this.ttlHours = config.getOrThrow<number>('EMAIL_VERIFICATION_TTL_HOURS');
     this.ttlMs = this.ttlHours * 60 * 60 * 1000;
-    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3001';
+    this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3000';
   }
 
   /**

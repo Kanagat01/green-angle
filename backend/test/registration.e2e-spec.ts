@@ -90,7 +90,7 @@ describe('Registration and email verification (e2e)', () => {
       expect(letters).toHaveLength(1);
       expect(letters[0].subject).toContain('Подтвердите email');
       expect(letters[0].text).toContain(
-        'http://localhost:3001/verify-email?token=',
+        'http://localhost:3000/verify-email?token=',
       );
       expect(letters[0].html).toContain('verify-email?token=');
     });

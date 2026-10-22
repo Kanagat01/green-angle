@@ -32,7 +32,7 @@ describe('validateEnv', () => {
     const env = validateEnv(base);
     expect(env).toMatchObject({
       NODE_ENV: 'development',
-      PORT: 3000,
+      PORT: 4000,
       LOG_LEVEL: 'info',
       TRUST_PROXY: false,
       CORS_ORIGINS: [],
@@ -119,11 +119,11 @@ describe('validateEnv', () => {
   it('parses a comma-separated CORS_ORIGINS list', () => {
     const env = validateEnv({
       ...base,
-      CORS_ORIGINS: ' https://app.example.com, http://localhost:3001 ,',
+      CORS_ORIGINS: ' https://app.example.com, http://localhost:3000 ,',
     });
     expect(env.CORS_ORIGINS).toEqual([
       'https://app.example.com',
-      'http://localhost:3001',
+      'http://localhost:3000',
     ]);
   });
 

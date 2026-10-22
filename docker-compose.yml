@@ -59,7 +59,7 @@ services:
     environment:
       # development: в этом окружении допустимы заглушки секретов (в production они запрещены)
       NODE_ENV: development
-      PORT: 3000
+      PORT: 4000
       DATABASE_URL: postgresql://green:green@postgres:5432/green_angle?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-min-16}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-min-16}
@@ -67,7 +67,7 @@ services:
       STORAGE_DRIVER: ${STORAGE_DRIVER:-disk}
       FILES_SIGNING_SECRET: ${FILES_SIGNING_SECRET:-change-me-files-secret-min-16}
       # ссылки на файлы — адрес API, который видит браузер
-      FILES_PUBLIC_URL: http://localhost:3000/api/v1
+      FILES_PUBLIC_URL: http://localhost:4000/api/v1
       S3_ENDPOINT: http://minio:9000
       # адрес в presigned URL — тот, который видит браузер
       S3_PUBLIC_ENDPOINT: http://localhost:9000
@@ -82,7 +82,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Green Angle <noreply@localhost>}
-      APP_URL: ${APP_URL:-http://localhost:3001}
+      APP_URL: ${APP_URL:-http://localhost:3000}
       # push: без ключей VAPID уведомления пишутся в лог API
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
@@ -90,9 +90,9 @@ services:
       PUSH_FALLBACK_MINUTES: ${PUSH_FALLBACK_MINUTES:-60}
       REDIS_URL: redis://redis:6379
       FFPROBE_PATH: ffprobe
-      # фронт локально — Next.js на :3001
-      CORS_ORIGINS: http://localhost:3001
-    ports: ['3000:3000']
+      # фронт локально — Next.js на :3000
+      CORS_ORIGINS: http://localhost:3000
+    ports: ['4000:4000']
     volumes: [uploads:/data/uploads]
 
 volumes:

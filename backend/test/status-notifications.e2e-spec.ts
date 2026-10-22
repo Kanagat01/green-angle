@@ -97,7 +97,7 @@ describe('Email notifications about status changes (e2e)', () => {
       expect(letters[0].text).toContain(
         'Новый этап (2 из 13): «Получена оплата»',
       );
-      expect(letters[0].text).toContain(`http://localhost:3001/cars/${id}`);
+      expect(letters[0].text).toContain(`http://localhost:3000/cars/${id}`);
       expect(letters[0].html).toContain(`/cars/${id}`);
     });
 
