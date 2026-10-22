@@ -1,6 +1,14 @@
 # Обратный прокси с автоматическим HTTPS (Let's Encrypt). WebSocket (Socket.IO) проксируется
 # автоматически. Caddy сам добавляет X-Forwarded-For — API (TRUST_PROXY=true) берёт IP клиента оттуда.
+
+# API, файлы и Socket.IO
 {$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy api:4000
+}
+
+# Сайт и кабинеты
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
 }

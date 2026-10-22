@@ -22,10 +22,10 @@ backend/                  NestJS API (pnpm, свой package.json и lock-фай
   src/                    модули: auth, users, clients, vehicles, requests, messages,
                           storage, uploads, realtime, rate-limit, health, config
   test/                   e2e-тесты на реальных Postgres и хранилище файлов
-frontend/                 Next.js — кабинет и лендинг (пока без связки с API)
+frontend/                 Next.js — лендинг и кабинеты (TanStack Query, Socket.IO, push), Dockerfile
 deploy/                   Caddyfile, скрипты резервного копирования и восстановления
 docker-compose.yml        разработка: Postgres + Redis + миграции + API (MinIO — профилем s3)
-docker-compose.prod.yml   боевой запуск: Caddy + API + Postgres + миграции + бэкапы
+docker-compose.prod.yml   боевой запуск: Caddy + сайт + API + Postgres + миграции + бэкапы
 ```
 
 ## Быстрый старт (разработка)
@@ -56,6 +56,17 @@ pnpm start:dev
 
 - API: `http://localhost:4000/api/v1`
 - Swagger (OpenAPI): `http://localhost:4000/api/docs` — по нему фронт генерирует типизированный клиент
+
+### Сайт и кабинеты
+
+```bash
+cd frontend
+cp .env.example .env.local          # NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+pnpm install
+pnpm dev                            # http://localhost:3000
+```
+
+Адрес фронтенда (`http://localhost:3000`) должен быть в `CORS_ORIGINS` и `APP_URL` API (в `.env.example` он уже там). Пока API меняется, типы обновляются командой `pnpm gen:api` (нужен запущенный API). Подробнее — `frontend/README.md`.
 - Проверка: `GET /api/v1/health` (живость), `GET /api/v1/health/ready` (база, хранилище файлов, Redis)
 - Загруженные файлы при локальном запуске лежат в `backend/data/uploads` (`UPLOAD_DIR`); при драйвере S3 консоль MinIO — `http://localhost:9001` (`minio` / `minio12345`)
 
@@ -131,14 +142,14 @@ STORAGE_DRIVER=s3 pnpm test:e2e         # то же на драйвере S3 (н
 
 ## Боевой запуск
 
-Нужен сервер с Docker и домен с A-записью на сервер. Файлы клиентов по умолчанию лежат на диске сервера (том `uploads`); вернуться на внешний S3 можно сменой `STORAGE_DRIVER=s3` и заполнением `S3_*` — API для клиентов не меняется.
+Нужен сервер с Docker и два домена с A-записями на сервер: один для API (`DOMAIN`), другой для сайта (`APP_DOMAIN`). Файлы клиентов по умолчанию лежат на диске сервера (том `uploads`); вернуться на внешний S3 можно сменой `STORAGE_DRIVER=s3` и заполнением `S3_*` — API для клиентов не меняется.
 
 ```bash
-cp .env.prod.example .env.prod      # заполнить: домен, пароль БД, секреты JWT и подписи файлов, CORS_ORIGINS
+cp .env.prod.example .env.prod      # заполнить: домены, пароль БД, секреты JWT и подписи файлов, ключи VAPID, почту, APP_URL и CORS_ORIGINS
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Что поднимается: **Caddy** (автоматический HTTPS, WebSocket) → **API** (не от root, healthcheck, с ffprobe) → **Postgres** и **Redis** (порты наружу не публикуются); отдельно **migrate** применяет миграции перед стартом API, а **backup** делает копии БД. Swagger в production выключен. Лимиты запросов считаются в общем Redis, поэтому API можно запускать в нескольких экземплярах (распределение трафика между ними настраивается на прокси; в `deploy/Caddyfile` сейчас один upstream).
+Что поднимается: **Caddy** (автоматический HTTPS, WebSocket) → **сайт** (Next.js, не от root, healthcheck) и **API** (не от root, healthcheck, с ffprobe) → **Postgres** и **Redis** (порты наружу не публикуются). Адрес API вшивается в код сайта при сборке (`NEXT_PUBLIC_API_URL=https://$DOMAIN/api/v1`), поэтому после смены `DOMAIN` образ сайта нужно пересобрать (`up -d --build`). Push-уведомления работают только по HTTPS. Socket.IO пока рассчитан на один экземпляр API (для нескольких понадобится Redis-адаптер); отдельно **migrate** применяет миграции перед стартом API, а **backup** делает копии БД. Swagger в production выключен. Лимиты запросов считаются в общем Redis, поэтому API можно запускать в нескольких экземплярах (распределение трафика между ними настраивается на прокси; в `deploy/Caddyfile` сейчас один upstream).
 
 Первого администратора создаёт отдельная команда (seed в production не используется — у него известные пароли):
 

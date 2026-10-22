@@ -11,12 +11,23 @@ services:
     ports: ['80:80', '443:443']
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN is required}
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       api: { condition: service_healthy }
+      web: { condition: service_healthy }
+
+  # Сайт и личные кабинеты (Next.js). Адрес API вшивается в код при сборке: сменили DOMAIN — пересоберите образ.
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}/api/v1
+    restart: unless-stopped
+    expose: ['3000']
 
   api:
     build:

@@ -64,6 +64,22 @@ jobs:
           test/storage.e2e-spec.ts test/uploads.e2e-spec.ts test/vehicles.e2e-spec.ts
           test/messages.e2e-spec.ts test/voice.e2e-spec.ts
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
   # Боевые образы должны собираться (иначе ошибка вскроется только при деплое)
   docker:
     runs-on: ubuntu-latest
@@ -71,3 +87,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build ./backend --target runtime -t green-angle-api
       - run: docker build ./backend --target migrate -t green-angle-migrate
+      - run: docker build ./frontend --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api/v1 -t green-angle-web
