@@ -1,15 +1,21 @@
 "use client";
 
+import { LoadError, Loading } from "@/components/ui/QueryState";
 import { Seg } from "@/components/ui/Seg";
-import { isWaiting, reqTitle } from "@/lib/format";
+import { useAdminRequests, useRequestCounts } from "@/lib/api/queries";
+import { dateTime, money, ownerKindLong, reqTitle } from "@/lib/format";
 import { NavLink } from "@/lib/nav";
 import { setUi, useApp } from "@/lib/store";
 import { ReqBadge } from "./ReqBadge";
+import { lastText } from "./RequestsView";
+
+const AUTHOR = { CLIENT: "Клиент", MANAGER: "Менеджер", SYSTEM: "Система" } as const;
 
 export function SReqsView() {
-  const { db, reqFilter } = useApp();
-  const all = db.requests.slice().sort((a, b) => (isWaiting(b) ? 1 : 0) - (isWaiting(a) ? 1 : 0));
-  const rows = reqFilter === "all" ? all : all.filter(isWaiting);
+  const { reqFilter } = useApp();
+  const { data, error, refetch } = useAdminRequests(reqFilter === "waiting");
+  const counts = useRequestCounts(true);
+  const rows = data?.items;
   return (
     <>
       <header className="head">
@@ -23,56 +29,59 @@ export function SReqsView() {
         value={reqFilter}
         onSelect={(v) => setUi({ reqFilter: v })}
         items={[
-          { v: "waiting", l: "Ждут ответа", n: all.filter(isWaiting).length },
-          { v: "all", l: "Все", n: all.length },
+          { v: "waiting", l: "Ждут ответа", n: counts.data?.awaitingReply },
+          { v: "all", l: "Все", n: counts.data?.total },
         ]}
       />
-      <div className="tablewrap">
-        <div className="tbl" role="table" aria-label="Заявки">
-          <div className="tr th req-cols" role="row">
-            <span role="columnheader">Клиент</span>
-            <span role="columnheader">Авто</span>
-            <span role="columnheader">Бюджет</span>
-            <span role="columnheader">Статус</span>
-            <span role="columnheader">Последнее сообщение</span>
-          </div>
-          {rows.length ? (
-            rows.map((r) => {
-              const m = r.messages[r.messages.length - 1];
-              return (
+      {error && !data ? (
+        <LoadError error={error} retry={() => void refetch()} />
+      ) : !rows ? (
+        <Loading />
+      ) : (
+        <div className="tablewrap">
+          <div className="tbl" role="table" aria-label="Заявки">
+            <div className="tr th req-cols" role="row">
+              <span role="columnheader">Клиент</span>
+              <span role="columnheader">Авто</span>
+              <span role="columnheader">Бюджет</span>
+              <span role="columnheader">Статус</span>
+              <span role="columnheader">Последнее сообщение</span>
+            </div>
+            {rows.length ? (
+              rows.map((r) => (
                 <NavLink key={r.id} route="request" id={r.id} className="tr req-cols" ariaRole="row">
                   <span role="cell" className="stack">
-                    <span className="headline">{r.owner.name}</span>
-                    <span className="cap muted">{r.owner.type === "picker" ? "Компания по привозу · юр.лицо" : "Физ.лицо"}</span>
+                    <span className="headline">{r.client.name}</span>
+                    <span className="cap muted">{ownerKindLong(r.client.type)}</span>
                   </span>
                   <span role="cell" className="sub">
                     {reqTitle(r)}
                   </span>
                   <span role="cell" className="sub">
-                    {r.budget}
+                    {money(r.budget)}
                   </span>
                   <span role="cell">
-                    <ReqBadge req={r} />
+                    <ReqBadge status={r.status} />
                   </span>
                   <span role="cell" style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
                     <span className="stack" style={{ flex: 1 }}>
-                      <span className="sub ellip">{m ? m.text || "Вложения" : ""}</span>
+                      <span className="sub ellip">{r.lastMessage ? lastText(r) : ""}</span>
                       <span className="cap muted">
-                        {m ? (m.who === "manager" ? "Менеджер" : m.who === "system" ? "Система" : "Клиент") + " · " + m.time : ""}
+                        {r.lastMessage ? `${AUTHOR[r.lastMessage.author]} · ${dateTime(r.lastMessage.createdAt)}` : ""}
                       </span>
                     </span>
-                    {isWaiting(r) && <span className="waiting">Ждёт ответа</span>}
+                    {r.awaitingReply && <span className="waiting">Ждёт ответа</span>}
                   </span>
                 </NavLink>
-              );
-            })
-          ) : (
-            <div className="sub muted" style={{ padding: "32px 20px", textAlign: "center" }}>
-              Все ответили. Новых заявок нет.
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="sub muted" style={{ padding: "32px 20px", textAlign: "center" }}>
+                Все ответили. Новых заявок нет.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

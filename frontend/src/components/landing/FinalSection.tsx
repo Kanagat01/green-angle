@@ -10,7 +10,7 @@ export function FinalSection() {
           <h2>Начните с заявки</h2>
           <p className="lead">Нужны только контакты и пароль.</p>
         </div>
-        <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "picker" })}>
+        <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "COMPANY" })}>
           Зарегистрироваться
         </button>
       </div>

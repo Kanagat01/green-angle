@@ -1,6 +1,6 @@
 "use client";
 
-import { openModal, resetDemo, toast } from "@/lib/store";
+import { openModal } from "@/lib/store";
 
 export function LandingFooter() {
   return (
@@ -12,17 +12,6 @@ export function LandingFooter() {
         <span>
           <button type="button" className="linkbtn" onClick={() => openModal({ kind: "login", staff: true })}>
             Вход для сотрудников
-          </button>
-          {" · "}
-          <button
-            type="button"
-            className="linkbtn"
-            onClick={() => {
-              resetDemo();
-              toast("Демо-данные сброшены.");
-            }}
-          >
-            Сбросить демо-данные
           </button>
         </span>
       </div>

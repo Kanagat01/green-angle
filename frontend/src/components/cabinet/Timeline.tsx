@@ -1,20 +1,22 @@
 import { Icon } from "@/components/ui/Icon";
 import { Chip } from "@/components/ui/Chip";
+import type { VehicleCard } from "@/lib/api/queries";
+import { stepAttachments } from "@/lib/attachments";
 import { FULL, KIND, KIND_WORD } from "@/lib/constants";
-import type { Car } from "@/lib/types";
 
-export function Timeline({ car }: { car: Car }) {
+export function Timeline({ car }: { car: VehicleCard }) {
+  const current = car.currentStep;
   return (
     <ol className="timeline" aria-label="История статусов">
       {FULL.map((name, i) => {
         const n = i + 1;
-        const st = n < car.step ? "d" : n === car.step ? "c" : "f";
-        const files = car.files[n] || [];
+        const st = n < current ? "d" : n === current ? "c" : "f";
+        const files = stepAttachments(car.steps[i]);
         const k = KIND[i];
         let need = "";
-        if (st !== "d" && k !== "none" && !files.length) need = (n === car.step ? "Ожидается " : "Нужно: ") + KIND_WORD[k];
+        if (st !== "d" && k !== "none" && !files.length) need = (n === current ? "Ожидается " : "Нужно: ") + KIND_WORD[k];
         let meta = st === "d" ? "Пройден" : st === "c" ? "Текущий этап" : "Впереди";
-        if (st === "c" && car.step === 13) meta = "Готово";
+        if (st === "c" && current === 13) meta = "Готово";
         return (
           <li key={n} className={st === "c" ? "now" : st === "f" ? "fut" : ""}>
             <div className={"dot " + st} aria-hidden="true">

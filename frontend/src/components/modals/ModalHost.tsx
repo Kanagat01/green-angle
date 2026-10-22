@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { restoreModalFocus, useApp, type ModalState } from "@/lib/store";
 import { AddCarModal } from "./AddCarModal";
-import { DeleteCarModal } from "./DeleteCarModal";
+import { CheckMailModal } from "./CheckMailModal";
 import { LoginModal } from "./LoginModal";
 import { NewRequestModal } from "./NewRequestModal";
 import { RegisterModal } from "./RegisterModal";
@@ -18,12 +18,12 @@ function Active({ modal }: { modal: ModalState }) {
       return <LoginModal staff={modal.staff} />;
     case "register":
       return <RegisterModal type={modal.type} />;
+    case "checkMail":
+      return <CheckMailModal email={modal.email} />;
     case "newReq":
       return <NewRequestModal />;
     case "addCar":
       return <AddCarModal />;
-    case "delCar":
-      return <DeleteCarModal carId={modal.carId} />;
   }
 }
 

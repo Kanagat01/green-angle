@@ -23,7 +23,7 @@ export function Hero() {
             Каждый важный шаг подтверждён фото, видео или документом.
           </p>
           <div className="cta">
-            <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "picker" })}>
+            <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "COMPANY" })}>
               Оставить заявку
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => openModal({ kind: "login", staff: false })}>

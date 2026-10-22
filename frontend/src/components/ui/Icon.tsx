@@ -49,6 +49,10 @@ const ICONS = {
       <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
     ),
   },
+  audio: {
+    size: 14, sw: 2, join: true,
+    paths: <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4" />,
+  },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

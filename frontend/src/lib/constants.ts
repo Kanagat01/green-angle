@@ -1,4 +1,4 @@
-import type { Owner, Role, StepKind } from "./types";
+import type { StepKind } from "./types";
 
 export const FULL = [
   "Ожидает оплату",
@@ -70,10 +70,13 @@ export const WHO_SEES: Record<StepKind, string> = {
   number: "Менеджер указывает номер декларации.",
 };
 
-export const OWNERS: Record<Exclude<Role, "super">, Owner> = {
-  picker: { type: "picker", name: "ООО «АвтоПривоз Плюс»" },
-  person: { type: "person", name: "Смирнов А. В." },
-};
+/** Бегущая строка на лендинге: примеры, не данные системы (подпись «демо» в разметке). */
+export const TICKER: [string, number][] = [
+  ["Geely Monjaro, 2024", 9],
+  ["Chery Tiggo 8 Pro, 2023", 2],
+  ["Zeekr 001, 2025", 5],
+  ["Li Auto L9, 2024", 13],
+];
 
 /** Подпись и цвет подложки карточки галереи на лендинге. */
 export const GALLERY: [string, string, string][] = [

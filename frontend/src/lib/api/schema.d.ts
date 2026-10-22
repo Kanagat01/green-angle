@@ -747,6 +747,8 @@ export interface components {
             requestId: string | null;
             /** @description Вложений на всех шагах */
             attachmentsCount: number;
+            /** @description Текущий шаг ждёт вложение или номер декларации, а их ещё нет (в интерфейсе — «ожидается фото») */
+            awaitingAttachment: boolean;
             /** @description Email конечного клиента подборщика для писем о статусе; только у машин компаний по привозу */
             notifyEmail: string | null;
             /** @description Письма о статусе на notifyEmail включены (по умолчанию нет) */
@@ -825,6 +827,8 @@ export interface components {
             requestId: string | null;
             /** @description Вложений на всех шагах */
             attachmentsCount: number;
+            /** @description Текущий шаг ждёт вложение или номер декларации, а их ещё нет (в интерфейсе — «ожидается фото») */
+            awaitingAttachment: boolean;
             /** @description Email конечного клиента подборщика для писем о статусе; только у машин компаний по привозу */
             notifyEmail: string | null;
             /** @description Письма о статусе на notifyEmail включены (по умолчанию нет) */

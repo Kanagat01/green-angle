@@ -1,11 +1,11 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
+import type { VehicleItem } from "@/lib/api/queries";
 import { SHORT } from "@/lib/constants";
-import { carTone, ownerKindLabel } from "@/lib/format";
+import { ownerKindLabel, vehicleTone } from "@/lib/format";
 import { NavLink, type Route } from "@/lib/nav";
-import type { Car } from "@/lib/types";
 
-export function CarHead({ car, backRoute, backLabel }: { car: Car; backRoute: Route; backLabel: string }) {
+export function CarHead({ car, backRoute, backLabel }: { car: VehicleItem; backRoute: Route; backLabel: string }) {
   return (
     <>
       <NavLink route={backRoute} className="back">
@@ -18,11 +18,11 @@ export function CarHead({ car, backRoute, backLabel }: { car: Car; backRoute: Ro
           <div className="meta">
             <span className="mono">{car.vin ? "VIN " + car.vin : "VIN не заполнен"}</span>
             <span>
-              {`${ownerKindLabel(car.owner.type)} · ${car.owner.name}`}
+              {`${ownerKindLabel(car.client.type)} · ${car.client.name}`}
             </span>
           </div>
         </div>
-        <Badge text={SHORT[car.step - 1]} tone={carTone(car)} />
+        <Badge text={SHORT[car.currentStep - 1]} tone={vehicleTone(car)} />
       </header>
     </>
   );

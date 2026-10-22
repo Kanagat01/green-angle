@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { closeModal, enter, getState, logout, setRole, toast, useApp } from "./store";
+import { useRole } from "./session";
+import { closeModal } from "./store";
 import type { Role } from "./types";
 
 export type Route = "cars" | "car" | "requests" | "request" | "scars" | "scar" | "sreqs";
@@ -38,51 +39,10 @@ function afterNavigate() {
 
 export function useGo() {
   const router = useRouter();
+  const role = useRole() ?? "picker";
   return (route: Route, id?: string) => {
-    router.push(routePath(route, id, getState().role));
+    router.push(routePath(route, id, role));
     afterNavigate();
-  };
-}
-
-/** Вход в кабинет роли: открывает её стартовый раздел. */
-export function useEnter() {
-  const router = useRouter();
-  return (role: Role, message?: string) => {
-    enter(role);
-    closeModal();
-    router.push(routePath(defaultRoute(role), undefined, role));
-    window.scrollTo(0, 0);
-    if (message) toast(message);
-  };
-}
-
-export function useLogout() {
-  const router = useRouter();
-  return () => {
-    logout();
-    closeModal();
-    router.push("/");
-    window.scrollTo(0, 0);
-  };
-}
-
-/**
- * Раздел, куда нужно прийти после смены роли. Открытая страница с чужими для новой роли данными
- * успеет запросить свой редирект, но в макете побеждает стартовый раздел роли.
- */
-let forcedPath: string | null = null;
-
-export function settleNavigation(pathname: string) {
-  if (forcedPath === pathname) forcedPath = null;
-}
-
-export function useSwitchRole() {
-  const router = useRouter();
-  return (role: Role) => {
-    setRole(role);
-    const target = routePath(defaultRoute(role), undefined, role);
-    forcedPath = target === window.location.pathname ? null : target;
-    router.push(target);
   };
 }
 
@@ -90,7 +50,7 @@ export function useSwitchRole() {
 export function useRedirectWhen(when: boolean, path: string) {
   const router = useRouter();
   useEffect(() => {
-    if (when) router.replace(forcedPath ?? path);
+    if (when) router.replace(path);
   }, [when, path, router]);
 }
 
@@ -109,7 +69,7 @@ export function NavLink({
   ariaRole?: string;
   children: ReactNode;
 }) {
-  const { role } = useApp();
+  const role = useRole() ?? "picker";
   return (
     <Link
       href={routePath(route, id, role)}

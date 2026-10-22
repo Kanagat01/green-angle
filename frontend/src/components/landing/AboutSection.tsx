@@ -46,7 +46,7 @@ export function AboutSection() {
             <div className="b">
               <span className="title-3">Компаниям по привозу</span>
               <span className="sub muted">Один кабинет на компанию: все машины ваших клиентов, заявки и переписка в одном месте.</span>
-              <button type="button" className="btn btn-tinted" onClick={() => openModal({ kind: "register", type: "picker" })}>
+              <button type="button" className="btn btn-tinted" onClick={() => openModal({ kind: "register", type: "COMPANY" })}>
                 Подключить компанию
               </button>
             </div>
@@ -58,7 +58,7 @@ export function AboutSection() {
             <div className="b">
               <span className="title-3">Частным покупателям</span>
               <span className="sub muted">Тот же кабинет на одного человека: ваши заявки и ваша машина.</span>
-              <button type="button" className="btn btn-tinted" onClick={() => openModal({ kind: "register", type: "person" })}>
+              <button type="button" className="btn btn-tinted" onClick={() => openModal({ kind: "register", type: "PERSON" })}>
                 Создать кабинет
               </button>
             </div>

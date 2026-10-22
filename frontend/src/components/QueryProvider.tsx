@@ -1,8 +1,10 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
-import { ApiError } from "@/lib/api/client";
+import { useEffect, useState, type ReactNode } from "react";
+import { ApiError, setSessionExpiredHandler } from "@/lib/api/client";
+import { endSession } from "@/lib/session";
+import { toast } from "@/lib/store";
 
 /** Ошибки 4xx повторять бессмысленно (нет доступа, не найдено, неверные данные); сбои сети и 5xx — до двух раз. */
 function shouldRetry(count: number, error: unknown): boolean {
@@ -20,5 +22,14 @@ export function QueryProvider({ children }: { children: ReactNode }) {
         },
       }),
   );
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      endSession(client);
+      toast("Сессия закончилась. Войдите снова.");
+    });
+    return () => setSessionExpiredHandler(undefined);
+  }, [client]);
+
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

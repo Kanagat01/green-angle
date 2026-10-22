@@ -1,18 +1,32 @@
 "use client";
 
-import { NotFoundCard } from "@/components/ui/NotFoundCard";
+import { LoadError, Loading } from "@/components/ui/QueryState";
+import { useRequest, useVehicle } from "@/lib/api/queries";
+import { dateFull } from "@/lib/format";
 import { NavLink } from "@/lib/nav";
-import { carById, openModal, reqById, useApp } from "@/lib/store";
+import { toast } from "@/lib/store";
 import { CarHead } from "./CarHead";
 import { StatusForm } from "./StatusForm";
 import { Timeline } from "./Timeline";
 import { VinForm } from "./VinForm";
 
+function RequestLink({ requestId, owner }: { requestId: string; owner: string }) {
+  const { data } = useRequest(requestId);
+  return (
+    <NavLink route="request" id={requestId} className="row">
+      <div className="main">
+        <span>Диалог по заявке</span>
+        <span className="sub muted">{data ? data.client.name : owner}</span>
+      </div>
+      <span className="chev" aria-hidden="true"></span>
+    </NavLink>
+  );
+}
+
 export function SCarView({ id }: { id: string }) {
-  const { db, edit } = useApp();
-  const c = carById(db, id);
-  if (!c) return <NotFoundCard />;
-  const r = c.reqId ? reqById(db, c.reqId) : undefined;
+  const { data: c, error, refetch } = useVehicle(id);
+  if (error && !c) return <LoadError error={error} retry={() => void refetch()} />;
+  if (!c) return <Loading />;
 
   return (
     <>
@@ -28,22 +42,14 @@ export function SCarView({ id }: { id: string }) {
         </section>
         <aside>
           {!c.vin && <VinForm carId={c.id} />}
-          <StatusForm key={edit.nonce} car={c} />
+          <StatusForm key={c.currentStep} car={c} />
           <section className="group">
             <div className="row">
               <div className="main">Заказ создан</div>
-              <span className="val">{c.created}</span>
+              <span className="val">{dateFull(c.createdAt)}</span>
             </div>
-            {r && (
-              <NavLink route="request" id={r.id} className="row">
-                <div className="main">
-                  <span>Диалог по заявке</span>
-                  <span className="sub muted">{r.owner.name}</span>
-                </div>
-                <span className="chev" aria-hidden="true"></span>
-              </NavLink>
-            )}
-            <button type="button" className="row" style={{ color: "var(--danger)" }} onClick={() => openModal({ kind: "delCar", carId: c.id })}>
+            {c.requestId && <RequestLink requestId={c.requestId} owner={c.client.name} />}
+            <button type="button" className="row" style={{ color: "var(--danger)" }} onClick={() => toast("Удаление машины пока недоступно.")}>
               <div className="main">Удалить машину</div>
             </button>
           </section>

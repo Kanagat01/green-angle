@@ -34,21 +34,21 @@ export function FeaturesSection() {
                   <Icon name="check" />
                 </span>
                 <span>Выкуплен</span>
-                <Chip file={["photo", "Фото · 4"]} />
+                <Chip file={{ kind: "photo", label: "Фото · 4" }} />
               </div>
               <div className="mrow">
                 <span className="dot d">
                   <Icon name="check" />
                 </span>
                 <span>В ТК в Китае</span>
-                <Chip file={["video", "Видео"]} />
+                <Chip file={{ kind: "video", label: "Видео" }} />
               </div>
               <div className="mrow">
                 <span className="dot d">
                   <Icon name="check" />
                 </span>
                 <span>Прибыла в РФ</span>
-                <Chip file={["file", "Декларация.pdf"]} />
+                <Chip file={{ kind: "file", label: "Декларация.pdf" }} />
               </div>
             </div>
             <div className="tx">

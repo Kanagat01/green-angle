@@ -1,36 +1,18 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { Progress } from "@/components/ui/Progress";
-import { SHORT } from "@/lib/constants";
-import { carTone } from "@/lib/format";
 import { setUi, useApp } from "@/lib/store";
 
-const SAMPLE = "LVSHCAMB5RE077734";
 const clean = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
+/** Публичной проверки по VIN на сервере пока нет (бэклог), поэтому честно говорим об этом. */
 function VinResult() {
-  const { lp, db } = useApp();
+  const { lp } = useApp();
   if (!lp.checked) return null;
-  const v = lp.vin.trim().toUpperCase();
-  const c = db.cars.find((x) => x.vin && x.vin === v);
-  if (!c) {
-    return (
-      <div className="res" role="status">
-        <span className="headline">Машины с таким VIN у нас нет</span>
-        <span className="sub muted">Проверьте 17 символов или попробуйте пример.</span>
-      </div>
-    );
-  }
   return (
     <div className="res" role="status">
-      <div className="top">
-        <span className="headline">{c.title}</span>
-        <Badge text={SHORT[c.step - 1]} tone={carTone(c)} />
-      </div>
-      <Progress step={c.step} caption={"Обновлено " + c.updated} />
-      <span className="foot muted">Вложения и полная история доступны владельцу в личном кабинете.</span>
+      <span className="headline">Проверка по VIN пока недоступна</span>
+      <span className="sub muted">Этап машины видно в личном кабинете — войдите или зарегистрируйтесь.</span>
     </div>
   );
 }
@@ -69,19 +51,6 @@ export function VinCheck() {
       <div id="vinRes">
         <VinResult />
       </div>
-      <span>
-        {"Пример для демо: "}
-        <button
-          type="button"
-          className="linkbtn mono"
-          onClick={() => {
-            setText(SAMPLE);
-            setUi({ lp: { ...lp, vin: SAMPLE, checked: true } });
-          }}
-        >
-          {SAMPLE}
-        </button>
-      </span>
     </div>
   );
 }

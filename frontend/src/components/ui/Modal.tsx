@@ -8,13 +8,18 @@ export function Modal({
   title,
   submitLabel,
   danger,
+  busy,
+  hideCancel,
   onSubmit,
   children,
 }: {
   title: string;
   submitLabel: string;
   danger?: boolean;
-  onSubmit: (form: HTMLFormElement) => void;
+  /** Идёт запрос: кнопка отправки заблокирована, повторное нажатие ничего не делает */
+  busy?: boolean;
+  hideCancel?: boolean;
+  onSubmit: (form: HTMLFormElement) => void | Promise<void>;
   children: ReactNode;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -33,7 +38,8 @@ export function Modal({
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSubmit(e.currentTarget);
+    if (busy) return;
+    void onSubmit(e.currentTarget);
   };
 
   return (
@@ -48,6 +54,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mTitle"
+        aria-busy={busy || undefined}
         id="mForm"
         noValidate
         ref={formRef}
@@ -63,10 +70,12 @@ export function Modal({
         </div>
         {children}
         <div className="actions">
-          <button type="button" className="btn btn-gray" onClick={closeModal}>
-            Отмена
-          </button>
-          <button type="submit" className={danger ? "btn btn-danger" : "btn btn-filled"}>
+          {!hideCancel && (
+            <button type="button" className="btn btn-gray" onClick={closeModal}>
+              Отмена
+            </button>
+          )}
+          <button type="submit" className={danger ? "btn btn-danger" : "btn btn-filled"} disabled={busy}>
             {submitLabel}
           </button>
         </div>

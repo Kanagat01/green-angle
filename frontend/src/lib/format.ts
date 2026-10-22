@@ -1,40 +1,46 @@
-import { KIND } from "./constants";
-import type { Car, Request } from "./types";
+import type { Schemas } from "./api/client";
+import type { Tone } from "./types";
+
+type ClientType = Schemas["VehicleClientDto"]["type"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function now(): string {
-  const d = new Date();
+/** «26.09, 14:05» — время сообщений */
+export function dateTime(iso: string): string {
+  const d = new Date(iso);
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function today(): string {
-  const d = new Date();
+/** «26.09.2026» */
+export function dateFull(iso: string): string {
+  const d = new Date(iso);
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
-export function money(v: string): string {
-  const n = parseInt(String(v).replace(/\D/g, ""), 10);
-  return isNaN(n) ? String(v) : `${n.toLocaleString("ru-RU").replace(/ /g, " ")} ₽`;
+/** «26.09» — когда машина обновлялась */
+export function dateShort(iso: string): string {
+  const d = new Date(iso);
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
 }
 
-export function reqTitle(r: Request): string {
-  return `${r.model}, ${r.year}`;
+export function money(v: number | null): string {
+  return v === null ? "не указан" : `${Math.round(v).toLocaleString("ru-RU")} ₽`;
 }
 
-export function isWaiting(r: Request): boolean {
-  if (r.status === "approved" || r.status === "rejected") return false;
-  const m = r.messages[r.messages.length - 1];
-  return !m || m.who === "client";
+export function reqTitle(r: Pick<Schemas["RequestViewDto"], "title" | "yearFrom">): string {
+  return r.yearFrom ? `${r.title}, ${r.yearFrom}` : r.title;
 }
 
-export function carTone(c: Car): "success" | "warning" | "accent" {
-  if (c.step === 13) return "success";
-  const k = KIND[c.step - 1];
-  const f = (c.files[c.step] || []).length;
-  return k !== "none" && !f ? "warning" : "accent";
+export function vehicleTone(v: Pick<Schemas["VehicleListItemDto"], "currentStep" | "awaitingAttachment">): Tone {
+  if (v.currentStep === 13) return "success";
+  return v.awaitingAttachment ? "warning" : "accent";
 }
 
-export function ownerKindLabel(type: "picker" | "person"): string {
-  return type === "picker" ? "Компания по привозу" : "Физ.лицо";
+export function ownerKindLabel(type: ClientType): string {
+  return type === "COMPANY" ? "Компания по привозу" : "Физ.лицо";
+}
+
+/** Подпись владельца в таблицах менеджера */
+export function ownerKindLong(type: ClientType): string {
+  return type === "COMPANY" ? "Компания по привозу · юр.лицо" : "Физ.лицо";
 }

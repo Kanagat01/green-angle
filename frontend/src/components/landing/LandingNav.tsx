@@ -31,7 +31,7 @@ export function LandingNav() {
           <button type="button" className="btn btn-gray" onClick={() => openModal({ kind: "login", staff: false })}>
             Войти
           </button>
-          <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "picker" })}>
+          <button type="button" className="btn btn-filled" onClick={() => openModal({ kind: "register", type: "COMPANY" })}>
             Регистрация
           </button>
         </div>

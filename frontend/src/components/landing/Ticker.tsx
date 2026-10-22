@@ -1,10 +1,6 @@
-"use client";
-
-import { SHORT } from "@/lib/constants";
-import { useApp } from "@/lib/store";
+import { SHORT, TICKER } from "@/lib/constants";
 
 export function Ticker() {
-  const { db } = useApp();
   return (
     <div className="ticker">
       <div className="in">
@@ -14,11 +10,11 @@ export function Ticker() {
         <div className="win">
           <div className="run">
             {[0, 1, 2, 3].flatMap((k) =>
-              db.cars.map((c) => (
-                <span className="it" key={k + c.id}>
-                  <b>{c.title}</b>
+              TICKER.map(([title, step]) => (
+                <span className="it" key={k + title}>
+                  <b>{title}</b>
                   <span>
-                    {`${SHORT[c.step - 1]} · этап ${c.step} из 13`}
+                    {`${SHORT[step - 1]} · этап ${step} из 13`}
                   </span>
                 </span>
               )),
