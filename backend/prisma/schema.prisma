@@ -59,16 +59,18 @@ model Client {
 }
 
 model User {
-  id              String    @id @default(uuid()) @db.Uuid
-  email           String    @unique
-  passwordHash    String
-  role            Role
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String    @unique
+  passwordHash       String
+  role               Role
   // null только у ADMIN
-  clientId        String?   @db.Uuid
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
+  clientId           String?   @db.Uuid
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
   // null — почта не подтверждена, войти нельзя. Аккаунты, созданные менеджером, подтверждены сразу
-  emailVerifiedAt DateTime?
+  emailVerifiedAt    DateTime?
+  // письма о смене статуса машины; по умолчанию включены (для физлица), у подборщика не используется
+  emailNotifications Boolean   @default(true)
 
   client Client? @relation(fields: [clientId], references: [id])
 
@@ -113,17 +115,21 @@ model RefreshToken {
 }
 
 model Vehicle {
-  id          String   @id @default(uuid()) @db.Uuid
-  clientId    String   @db.Uuid
+  id            String   @id @default(uuid()) @db.Uuid
+  clientId      String   @db.Uuid
   // «Geely Monjaro, 2024»
-  title       String
+  title         String
   // nullable: машина из одобренной заявки создаётся без VIN. Postgres допускает много NULL в unique-индексе
-  vin         String?  @unique
+  vin           String?  @unique
   // 1..13, диапазон проверяется CHECK-ограничением в миграции
-  currentStep Int      @default(1)
-  createdAt   DateTime @default(now())
+  currentStep   Int      @default(1)
+  createdAt     DateTime @default(now())
   // «Обновлено» в карточке: смена статуса, правка названия и VIN
-  updatedAt   DateTime @default(now()) @updatedAt
+  updatedAt     DateTime @default(now()) @updatedAt
+  // Уведомления конечному клиенту подборщика (он не пользователь системы): email и включено ли.
+  // Для машин физлица не используются — письма идут на email самого физлица
+  notifyEmail   String?
+  notifyEnabled Boolean  @default(false)
 
   client     Client             @relation(fields: [clientId], references: [id])
   steps      VehicleStep[]

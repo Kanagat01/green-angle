@@ -23,6 +23,12 @@ export class MeDto {
   role: Role;
 
   @ApiProperty({
+    description:
+      'Письма о смене статуса машины на email пользователя (для физлица)',
+  })
+  emailNotifications: boolean;
+
+  @ApiProperty({
     type: MeClientDto,
     nullable: true,
     description: 'null у ADMIN',

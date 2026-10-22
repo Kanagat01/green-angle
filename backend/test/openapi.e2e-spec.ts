@@ -48,6 +48,22 @@ describe('OpenAPI document (e2e)', () => {
     expect(doc.paths['/api/v1/admin/requests']?.get).toBeDefined();
   });
 
+  it('describes the notification settings', () => {
+    expect(
+      doc.paths['/api/v1/vehicles/{id}/notifications']?.patch,
+    ).toBeDefined();
+    expect(doc.paths['/api/v1/me']?.patch).toBeDefined();
+    expect(props('UpdateVehicleNotificationsDto')).toEqual([
+      'email',
+      'enabled',
+    ]);
+    expect(props('UpdateMeDto')).toEqual(['emailNotifications']);
+    expect(props('MeDto')).toContain('emailNotifications');
+    expect(props('VehicleListItemDto')).toEqual(
+      expect.arrayContaining(['notifyEmail', 'notifyEnabled']),
+    );
+  });
+
   it('describes registration, verification and the closed login', () => {
     for (const path of ['register', 'verify-email', 'resend-verification']) {
       expect(doc.paths[`/api/v1/auth/${path}`]?.post, path).toBeDefined();

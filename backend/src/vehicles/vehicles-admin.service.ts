@@ -8,6 +8,7 @@ import type { AuthUser } from '../auth/auth-user.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { AttachmentKind, MessageType } from '../generated/prisma/client.js';
 import { MessagesService } from '../messages/messages.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeService } from '../realtime/realtime.service.js';
 import { AttachmentsService } from '../storage/attachments.service.js';
@@ -34,6 +35,7 @@ export class VehiclesAdminService {
     private readonly vehicles: VehiclesService,
     private readonly realtime: RealtimeService,
     private readonly messages: MessagesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Ручное создание машины в супер ЛК: VIN обязателен, клиент — существующий или новый. */
@@ -285,6 +287,10 @@ export class VehiclesAdminService {
     });
 
     await this.messages.announce(change.messageIds);
+    // Письмо клиенту — только о движении вперёд: откат назад это исправление ошибки менеджера
+    if (to > change.from) {
+      await this.notifications.vehicleStatusChanged(id, to);
+    }
     this.realtime.vehicleStatusChanged({
       vehicleId: id,
       clientId: change.clientId,

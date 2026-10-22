@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
 import { clientScope } from '../common/scope.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -12,6 +16,7 @@ import {
   TOTAL_STEPS,
 } from './steps.catalog.js';
 import type { VehicleState } from './dto/list-vehicles-query.dto.js';
+import { UpdateVehicleNotificationsDto } from './dto/update-notifications.dto.js';
 import {
   StepState,
   VehicleCardDto,
@@ -109,6 +114,39 @@ export class VehiclesService {
     };
   }
 
+  /**
+   * Письма о статусе для конечного клиента подборщика. Меняет только владелец-подборщик
+   * (чужая машина — 404). Включить можно только при указанном email; смена email не включает
+   * и не выключает письма сама.
+   */
+  async updateNotifications(
+    user: AuthUser,
+    id: string,
+    dto: UpdateVehicleNotificationsDto,
+  ): Promise<VehicleCardDto> {
+    if (dto.email === undefined && dto.enabled === undefined) {
+      throw new BadRequestException('Nothing to update');
+    }
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, ...clientScope(user) },
+      select: { notifyEmail: true },
+    });
+    if (!vehicle) throw new NotFoundException('Vehicle not found');
+
+    const email = dto.email ?? vehicle.notifyEmail;
+    if (dto.enabled === true && !email) {
+      throw new BadRequestException('Provide an email to enable notifications');
+    }
+    await this.prisma.vehicle.update({
+      where: { id },
+      data: {
+        ...(dto.email === undefined ? {} : { notifyEmail: dto.email }),
+        ...(dto.enabled === undefined ? {} : { notifyEnabled: dto.enabled }),
+      },
+    });
+    return this.getCard(user, id);
+  }
+
   /** Счётчики для вкладок: по всем доступным пользователю машинам, без учёта фильтров списка. */
   private async counts(user: AuthUser): Promise<VehicleCountsDto> {
     const scope = clientScope(user);
@@ -200,6 +238,8 @@ function toListItem(
     client: v.client,
     requestId: v.request?.id ?? null,
     attachmentsCount,
+    notifyEmail: v.notifyEmail,
+    notifyEnabled: v.notifyEnabled,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   };

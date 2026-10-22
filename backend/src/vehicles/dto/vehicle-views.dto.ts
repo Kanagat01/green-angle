@@ -52,6 +52,19 @@ export class VehicleListItemDto {
   @ApiProperty({ description: 'Вложений на всех шагах' })
   attachmentsCount: number;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Email конечного клиента подборщика для писем о статусе; только у машин компаний по привозу',
+  })
+  notifyEmail: string | null;
+
+  @ApiProperty({
+    description: 'Письма о статусе на notifyEmail включены (по умолчанию нет)',
+  })
+  notifyEnabled: boolean;
+
   @ApiProperty()
   createdAt: Date;
 
