@@ -16,6 +16,7 @@ interface Item {
   currentStep: number;
   requestId: string | null;
   attachmentsCount: number;
+  awaitingAttachment: boolean;
   createdAt: string;
   updatedAt: string;
   client: { id: string; type: string };
@@ -395,6 +396,58 @@ describe('Vehicle lists: search, filters, counters and card data (e2e)', () => {
       );
     });
 
+    it('flags a vehicle whose current step still waits for an attachment or a declaration number', async () => {
+      const flag = async (id: string) => {
+        const card = (
+          await call('GET', `/vehicles/${id}`, tokens.broker)
+        ).json<Item>();
+        const row = (
+          await clientList(`&search=${encodeURIComponent('Await')}`)
+        ).items.find((v) => v.id === id);
+        expect(row?.awaitingAttachment).toBe(card.awaitingAttachment);
+        return card.awaitingAttachment;
+      };
+      const t = mark();
+      const photo = await make(
+        fx.broker.clientId,
+        `Await photo ${t}`,
+        vin('EEE5'),
+        9,
+      );
+      const none = await make(
+        fx.broker.clientId,
+        `Await none ${t}`,
+        vin('FFF6'),
+        5,
+      );
+      const declaration = await make(
+        fx.broker.clientId,
+        `Await declaration ${t}`,
+        vin('GGG7'),
+        10,
+      );
+
+      expect(await flag(photo)).toBe(true);
+      expect(await flag(none)).toBe(false);
+      expect(await flag(declaration)).toBe(true);
+
+      await call('POST', `/admin/vehicles/${photo}/status`, tokens.admin, {
+        step: 9,
+        attachments: (await stepEvidence(app, fx.admin.id, 9)).attachments,
+      });
+      await call(
+        'POST',
+        `/admin/vehicles/${declaration}/status`,
+        tokens.admin,
+        {
+          step: 10,
+          declarationNumber: '10702070/181024/5012345',
+        },
+      );
+      expect(await flag(photo)).toBe(false);
+      expect(await flag(declaration)).toBe(false);
+    });
+
     it('has the same fields in the list, the card and the admin list', async () => {
       const fromList = (await clientList('&search=Monjaro')).items[0];
       const fromCard = (
@@ -406,6 +459,7 @@ describe('Vehicle lists: search, filters, counters and card data (e2e)', () => {
       for (const key of [
         'requestId',
         'attachmentsCount',
+        'awaitingAttachment',
         'updatedAt',
       ] as const) {
         expect(fromList[key]).toEqual(fromCard[key]);

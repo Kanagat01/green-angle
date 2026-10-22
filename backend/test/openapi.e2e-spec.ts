@@ -145,7 +145,12 @@ describe('OpenAPI document (e2e)', () => {
       expect.arrayContaining(['all', 'active', 'ready', 'company', 'person']),
     );
     expect(props('VehicleListItemDto')).toEqual(
-      expect.arrayContaining(['requestId', 'attachmentsCount', 'updatedAt']),
+      expect.arrayContaining([
+        'requestId',
+        'attachmentsCount',
+        'awaitingAttachment',
+        'updatedAt',
+      ]),
     );
   });
 

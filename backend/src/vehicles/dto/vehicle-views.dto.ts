@@ -53,6 +53,12 @@ export class VehicleListItemDto {
   attachmentsCount: number;
 
   @ApiProperty({
+    description:
+      'Текущий шаг ждёт вложение или номер декларации, а их ещё нет (в интерфейсе — «ожидается фото»)',
+  })
+  awaitingAttachment: boolean;
+
+  @ApiProperty({
     nullable: true,
     type: String,
     description:

@@ -105,10 +105,16 @@ export class VehiclesService {
       this.prisma.vehicle.count({ where }),
       this.counts(user),
     ]);
-    const attachments = await this.attachmentCounts(items.map((v) => v.id));
+    const ids = items.map((v) => v.id);
+    const [attachments, awaiting] = await Promise.all([
+      this.attachmentCounts(ids),
+      this.awaitingAttachment(items),
+    ]);
 
     return {
-      items: items.map((v) => toListItem(v, attachments.get(v.id) ?? 0)),
+      items: items.map((v) =>
+        toListItem(v, attachments.get(v.id) ?? 0, awaiting.has(v.id)),
+      ),
       total,
       counts,
     };
@@ -165,6 +171,40 @@ export class VehiclesService {
     return { all, active: all - ready, ready, company, person };
   }
 
+  /**
+   * Машины из списка, у которых текущий шаг требует вложение (или номер декларации),
+   * а его ещё нет: по ним менеджеру нужно что-то приложить.
+   */
+  private async awaitingAttachment(
+    vehicles: { id: string; currentStep: number }[],
+  ): Promise<Set<string>> {
+    const expecting = vehicles.filter(
+      (v) => STEPS[v.currentStep - 1].expectedAttachment !== null,
+    );
+    if (expecting.length === 0) return new Set();
+    const rows = await this.prisma.$queryRaw<
+      { vehicleId: string; count: number; declarationNumber: string | null }[]
+    >`SELECT v."id" AS "vehicleId", count(a."id")::int AS count, s."declarationNumber"
+        FROM "Vehicle" v
+        JOIN "VehicleStep" s ON s."vehicleId" = v."id" AND s."step" = v."currentStep"
+        LEFT JOIN "Attachment" a ON a."vehicleStepId" = s."id"
+       WHERE v."id" = ANY(${expecting.map((v) => v.id)}::uuid[])
+       GROUP BY v."id", s."declarationNumber"`;
+    const byId = new Map(rows.map((r) => [r.vehicleId, r]));
+    return new Set(
+      expecting
+        .filter((v) => {
+          const row = byId.get(v.id);
+          if (!row) return true;
+          return STEPS[v.currentStep - 1].expectedAttachment ===
+            'DECLARATION_NUMBER'
+            ? !row.declarationNumber
+            : row.count === 0;
+        })
+        .map((v) => v.id),
+    );
+  }
+
   /** Число вложений на шагах: vehicleId → количество (машины без вложений не включаются). */
   private async attachmentCounts(
     vehicleIds: string[],
@@ -210,7 +250,13 @@ export class VehiclesService {
       (n, s) => n + s.attachments.length,
       0,
     );
-    return { ...toListItem(vehicle, attachmentsCount), steps };
+    const current = steps[vehicle.currentStep - 1];
+    const awaiting =
+      current.expectedAttachment === 'DECLARATION_NUMBER'
+        ? !current.declarationNumber
+        : current.expectedAttachment !== null &&
+          current.attachments.length === 0;
+    return { ...toListItem(vehicle, attachmentsCount, awaiting), steps };
   }
 }
 
@@ -226,6 +272,7 @@ function stepState(
 function toListItem(
   v: VehicleWithClient,
   attachmentsCount: number,
+  awaitingAttachment: boolean,
 ): VehicleListItemDto {
   return {
     id: v.id,
@@ -238,6 +285,7 @@ function toListItem(
     client: v.client,
     requestId: v.request?.id ?? null,
     attachmentsCount,
+    awaitingAttachment,
     notifyEmail: v.notifyEmail,
     notifyEnabled: v.notifyEnabled,
     createdAt: v.createdAt,
