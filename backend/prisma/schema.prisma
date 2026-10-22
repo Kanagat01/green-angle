@@ -148,6 +148,10 @@ model Vehicle {
   // Для машин физлица не используются — письма идут на email самого физлица
   notifyEmail   String?
   notifyEnabled Boolean  @default(false)
+  // Удаление мягкое: неизменяемый журнал смен статуса ссылается на машину, поэтому строка остаётся,
+  // но нигде не показывается. VIN при удалении переносится в deletedVin и освобождается для новой машины.
+  deletedAt     DateTime?
+  deletedVin    String?
 
   client     Client             @relation(fields: [clientId], references: [id])
   steps      VehicleStep[]

@@ -7,6 +7,7 @@ import { wavBuffer } from './audio-fixtures.js';
 import type {
   MessageCreatedPayload,
   RequestUpdatedPayload,
+  VehicleDeletedPayload,
   VehicleStatusChangedPayload,
 } from '../src/realtime/realtime.events.js';
 import {
@@ -26,12 +27,14 @@ interface EventMap {
   'message.created': MessageCreatedPayload;
   'request.updated': RequestUpdatedPayload;
   'vehicle.status_changed': VehicleStatusChangedPayload;
+  'vehicle.deleted': VehicleDeletedPayload;
 }
 type EventName = keyof EventMap;
 const EVENTS: EventName[] = [
   'message.created',
   'request.updated',
   'vehicle.status_changed',
+  'vehicle.deleted',
 ];
 
 /** Подключённый сокет, записывающий все серверные события. */
@@ -121,7 +124,7 @@ describe('Realtime (e2e)', () => {
   }
 
   const http = (
-    method: 'GET' | 'POST' | 'PATCH',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
     token: string,
     payload?: object,
@@ -467,6 +470,36 @@ describe('Realtime (e2e)', () => {
 
       await other.expectNone(
         'vehicle.status_changed',
+        (p) => p.vehicleId === vehicleId,
+      );
+    });
+
+    it('tells the owner and the managers, but nobody else, that a vehicle was deleted', async () => {
+      const id = await newRequest(tokens.broker);
+      const approved = await http(
+        'POST',
+        `/admin/requests/${id}/approve`,
+        tokens.admin,
+      );
+      const vehicleId = approved.json<{ vehicle: { id: string } }>().vehicle.id;
+      const broker = await connect(tokens.broker);
+      const admin = await connect(tokens.admin);
+      const other = await connect(tokens.otherBroker);
+
+      const res = await http(
+        'DELETE',
+        `/admin/vehicles/${vehicleId}`,
+        tokens.admin,
+      );
+      expect(res.statusCode).toBe(204);
+
+      for (const c of [broker, admin]) {
+        expect(
+          await c.waitFor('vehicle.deleted', (p) => p.vehicleId === vehicleId),
+        ).toMatchObject({ clientId: fx.broker.clientId });
+      }
+      await other.expectNone(
+        'vehicle.deleted',
         (p) => p.vehicleId === vehicleId,
       );
     });

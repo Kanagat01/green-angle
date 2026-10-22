@@ -107,7 +107,10 @@ export class VehiclesAdminService {
     }
 
     try {
-      await this.prisma.vehicle.update({ where: { id }, data });
+      await this.prisma.vehicle.update({
+        where: { id, deletedAt: null },
+        data,
+      });
     } catch (err) {
       throw translateDbError(err);
     }
@@ -153,7 +156,7 @@ export class VehiclesAdminService {
 
     const change = await this.prisma.$transaction(async (tx) => {
       const vehicle = await tx.vehicle.findUnique({
-        where: { id },
+        where: { id, deletedAt: null },
         select: { currentStep: true, clientId: true },
       });
       if (!vehicle) throw new NotFoundException('Vehicle not found');
@@ -303,6 +306,66 @@ export class VehiclesAdminService {
     return this.vehicles.getCard(user, id);
   }
 
+  /**
+   * Удаление машины менеджером. Журнал смен статуса неизменяем и ссылается на машину, поэтому
+   * строка остаётся помеченной (`deletedAt`) и нигде не показывается. Вместе с машиной уходят вложения
+   * шагов (строки и файлы), VIN освобождается, заявка теряет ссылку на машину, а в её диалог
+   * пишется служебная строка.
+   */
+  async remove(id: string): Promise<void> {
+    const removed = await this.prisma.$transaction(async (tx) => {
+      const vehicle = await tx.vehicle.findFirst({
+        where: { id, deletedAt: null },
+        select: { vin: true, clientId: true, title: true },
+      });
+      if (!vehicle) throw new NotFoundException('Vehicle not found');
+
+      const files = await tx.attachment.findMany({
+        where: { vehicleStep: { vehicleId: id } },
+        select: { key: true },
+      });
+      await tx.attachment.deleteMany({
+        where: { vehicleStep: { vehicleId: id } },
+      });
+      await tx.vehicle.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedVin: vehicle.vin, vin: null },
+      });
+
+      const request = await tx.request.findUnique({
+        where: { vehicleId: id },
+        select: { id: true },
+      });
+      const messageIds: string[] = [];
+      if (request) {
+        await tx.request.update({
+          where: { id: request.id },
+          data: { vehicleId: null },
+        });
+        messageIds.push(
+          await this.messages.createSystem(
+            tx,
+            request.id,
+            'Менеджер удалил машину.',
+          ),
+        );
+      }
+      return {
+        clientId: vehicle.clientId,
+        keys: files.map((f) => f.key),
+        messageIds,
+      };
+    });
+
+    await this.attachments.deleteObjects(removed.keys);
+    await this.messages.announce(removed.messageIds);
+    this.realtime.vehicleDeleted({
+      vehicleId: id,
+      clientId: removed.clientId,
+      at: new Date().toISOString(),
+    });
+  }
+
   /** Прикрепляет к шагу файл, ранее загруженный в хранилище по ссылке из /uploads/presign. */
   async addStepAttachment(
     user: AuthUser,
@@ -316,7 +379,10 @@ export class VehiclesAdminService {
       );
     }
     const row = await this.prisma.vehicleStep.findUnique({
-      where: { vehicleId_step: { vehicleId, step } },
+      where: {
+        vehicleId_step: { vehicleId, step },
+        vehicle: { deletedAt: null },
+      },
       select: { id: true },
     });
     if (!row) throw new NotFoundException('Vehicle not found');

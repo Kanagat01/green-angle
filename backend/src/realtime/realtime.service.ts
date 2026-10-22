@@ -5,6 +5,7 @@ import {
   RealtimeEvents,
   RequestUpdatedPayload,
   rooms,
+  VehicleDeletedPayload,
   VehicleStatusChangedPayload,
 } from './realtime.events.js';
 
@@ -42,6 +43,14 @@ export class RealtimeService {
     this.emit(
       [rooms.client(payload.clientId), rooms.admins],
       RealtimeEvents.VEHICLE_STATUS_CHANGED,
+      payload,
+    );
+  }
+
+  vehicleDeleted(payload: VehicleDeletedPayload) {
+    this.emit(
+      [rooms.client(payload.clientId), rooms.admins],
+      RealtimeEvents.VEHICLE_DELETED,
       payload,
     );
   }

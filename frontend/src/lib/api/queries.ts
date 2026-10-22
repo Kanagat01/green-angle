@@ -203,6 +203,21 @@ export function useCreateVehicle() {
   });
 }
 
+export function useDeleteVehicle() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/admin/vehicles/${id}`, { method: "DELETE" }),
+    onSuccess: (_, id) => {
+      client.removeQueries({ queryKey: keys.vehicle(id) });
+      invalidateVehicle(client);
+      // заявка, из которой создана машина, теряет ссылку на неё и получает строку в диалоге
+      void client.invalidateQueries({ queryKey: keys.requests });
+      void client.invalidateQueries({ queryKey: ["request"] });
+      void client.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+}
+
 export function useUpdateVehicleNotifications(vehicleId: string) {
   const client = useQueryClient();
   return useMutation({

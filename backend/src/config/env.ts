@@ -157,6 +157,8 @@ export const envSchema = z
     RATE_LIMIT_LOGIN_WINDOW_SEC: positiveInt(60),
     RATE_LIMIT_LOGIN_ACCOUNT_MAX: positiveInt(5),
     RATE_LIMIT_LOGIN_IP_MAX: positiveInt(30),
+    /** Публичная проверка этапа по VIN: запросов с одного IP за общее окно */
+    RATE_LIMIT_VIN_CHECK_MAX: positiveInt(10),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) {

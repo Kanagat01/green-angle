@@ -60,6 +60,10 @@ describe("startRealtime", () => {
     invalidate.mockClear();
     emit("vehicle.status_changed", { vehicleId: "v1" });
     expect(invalidatedKeys()).toEqual(["vehicles", "vehicle"]);
+
+    invalidate.mockClear();
+    emit("vehicle.deleted", { vehicleId: "v1" });
+    expect(invalidatedKeys()).toEqual(expect.arrayContaining(["vehicles", "vehicle", "requests", "request"]));
   });
 
   it("re-reads everything after every connect, because events could be missed before it", () => {

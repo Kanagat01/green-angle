@@ -38,6 +38,7 @@ describe('validateEnv', () => {
       CORS_ORIGINS: [],
       RATE_LIMIT_LOGIN_ACCOUNT_MAX: 5,
       RATE_LIMIT_LOGIN_IP_MAX: 30,
+      RATE_LIMIT_VIN_CHECK_MAX: 10,
       STORAGE_DRIVER: 'disk',
       UPLOAD_DIR: './data/uploads',
     });
@@ -329,6 +330,9 @@ describe('validateEnv', () => {
 
   it('rejects out-of-range numbers and unknown flags', () => {
     expect(() => validateEnv({ ...base, PORT: '0' })).toThrow(/PORT/);
+    expect(() =>
+      validateEnv({ ...base, RATE_LIMIT_VIN_CHECK_MAX: '0' }),
+    ).toThrow(/RATE_LIMIT_VIN_CHECK_MAX/);
     expect(() => validateEnv({ ...base, RATE_LIMIT_MAX: '-1' })).toThrow(
       /RATE_LIMIT_MAX/,
     );

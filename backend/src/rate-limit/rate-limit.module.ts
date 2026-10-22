@@ -28,6 +28,15 @@ const isLoginRequest = (context: ExecutionContext) => {
   return req.method === 'POST' && CREDENTIAL_PATHS.has(req.url.split('?')[0]);
 };
 
+/** Публичная проверка по VIN: перебор VIN ограничиваем по IP */
+const isVinCheck = (context: ExecutionContext) => {
+  const req = context.switchToHttp().getRequest<HttpRequest>();
+  return (
+    req.method === 'GET' &&
+    req.url.split('?')[0] === '/api/v1/public/vehicle-status'
+  );
+};
+
 /** Ключ для лимита по аккаунту: IP + email из тела (без учёта регистра). */
 const ipAndEmail = (req: Record<string, any>) => {
   const { ip, body } = req as HttpRequest;
@@ -37,11 +46,12 @@ const ipAndEmail = (req: Record<string, any>) => {
 };
 
 /**
- * Три лимитера. Счётчики общие для всех экземпляров API, если задан REDIS_URL (при недоступном
+ * Четыре лимитера. Счётчики общие для всех экземпляров API, если задан REDIS_URL (при недоступном
  * Redis временно считаем в памяти процесса), иначе — только в памяти процесса:
  * - default — общий потолок запросов с одного IP;
  * - login-account — попытки входа по связке IP + email (перебор пароля);
- * - login-ip — попытки входа с одного IP (перебор логинов).
+ * - login-ip — попытки входа с одного IP (перебор логинов);
+ * - vin-check — проверки этапа по VIN без входа с одного IP (перебор VIN).
  * Лимит привязан к IP, поэтому чужие неудачные попытки не блокируют настоящего владельца аккаунта.
  */
 @Module({
@@ -80,6 +90,12 @@ const ipAndEmail = (req: Record<string, any>) => {
               ttl: loginTtl,
               limit: config.getOrThrow<number>('RATE_LIMIT_LOGIN_IP_MAX'),
               skipIf: (ctx) => !isLoginRequest(ctx),
+            },
+            {
+              name: 'vin-check',
+              ttl: window('RATE_LIMIT_WINDOW_SEC'),
+              limit: config.getOrThrow<number>('RATE_LIMIT_VIN_CHECK_MAX'),
+              skipIf: (ctx) => !isVinCheck(ctx),
             },
           ],
         };

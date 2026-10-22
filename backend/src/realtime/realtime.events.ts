@@ -9,6 +9,8 @@ export const RealtimeEvents = {
   REQUEST_UPDATED: 'request.updated',
   /** Машина создана или сменила статус — клиенту-владельцу и менеджерам */
   VEHICLE_STATUS_CHANGED: 'vehicle.status_changed',
+  /** Машину удалил менеджер — клиенту-владельцу и менеджерам */
+  VEHICLE_DELETED: 'vehicle.deleted',
 } as const;
 
 export const RealtimeCommands = {
@@ -51,6 +53,12 @@ export interface VehicleStatusChangedPayload {
   toStep: number;
   toStepTitle: string;
   declarationNumber: string | null;
+  at: string;
+}
+
+export interface VehicleDeletedPayload {
+  vehicleId: string;
+  clientId: string;
   at: string;
 }
 

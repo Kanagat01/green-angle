@@ -16,6 +16,7 @@ import {
   TOTAL_STEPS,
 } from './steps.catalog.js';
 import type { VehicleState } from './dto/list-vehicles-query.dto.js';
+import { PublicVehicleStatusDto } from './dto/public-status.dto.js';
 import { UpdateVehicleNotificationsDto } from './dto/update-notifications.dto.js';
 import {
   StepState,
@@ -72,6 +73,7 @@ export class VehiclesService {
    */
   async list(user: AuthUser, filters: VehicleFilters): Promise<VehicleListDto> {
     const where: Prisma.VehicleWhereInput = {
+      deletedAt: null,
       ...(filters.vin
         ? { vin: { contains: filters.vin, mode: 'insensitive' } }
         : {}),
@@ -120,6 +122,23 @@ export class VehiclesService {
     };
   }
 
+  /** Этап машины по VIN для всех желающих: без владельца и вложений. Удалённые не находятся. */
+  async publicStatus(vin: string): Promise<PublicVehicleStatusDto> {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { vin, deletedAt: null },
+      select: { title: true, currentStep: true, updatedAt: true },
+    });
+    if (!vehicle) throw new NotFoundException('Vehicle not found');
+    return {
+      title: vehicle.title,
+      currentStep: vehicle.currentStep,
+      currentStepTitle: stepTitle(vehicle.currentStep),
+      totalSteps: TOTAL_STEPS,
+      progress: vehicle.currentStep / TOTAL_STEPS,
+      updatedAt: vehicle.updatedAt,
+    };
+  }
+
   /**
    * Письма о статусе для конечного клиента подборщика. Меняет только владелец-подборщик
    * (чужая машина — 404). Включить можно только при указанном email; смена email не включает
@@ -134,7 +153,7 @@ export class VehiclesService {
       throw new BadRequestException('Nothing to update');
     }
     const vehicle = await this.prisma.vehicle.findFirst({
-      where: { id, ...clientScope(user) },
+      where: { id, deletedAt: null, ...clientScope(user) },
       select: { notifyEmail: true },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
@@ -155,7 +174,7 @@ export class VehiclesService {
 
   /** Счётчики для вкладок: по всем доступным пользователю машинам, без учёта фильтров списка. */
   private async counts(user: AuthUser): Promise<VehicleCountsDto> {
-    const scope = clientScope(user);
+    const scope = { deletedAt: null, ...clientScope(user) };
     const [all, ready, company, person] = await Promise.all([
       this.prisma.vehicle.count({ where: scope }),
       this.prisma.vehicle.count({
@@ -223,7 +242,7 @@ export class VehiclesService {
   /** Карточка машины: 13 шагов с состоянием, вложениями и номером декларации. */
   async getCard(user: AuthUser, id: string): Promise<VehicleCardDto> {
     const vehicle = await this.prisma.vehicle.findFirst({
-      where: { id, ...clientScope(user) },
+      where: { id, deletedAt: null, ...clientScope(user) },
       include: cardInclude,
     });
     // 404, а не 403: не раскрываем существование чужих машин

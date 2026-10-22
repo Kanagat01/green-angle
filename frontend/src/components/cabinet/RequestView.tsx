@@ -208,6 +208,11 @@ export function RequestView({ id }: { id: string }) {
           </NavLink>
         </div>
       )}
+      {r.status === "APPROVED" && !r.vehicleId && (
+        <div className="banner warn" role="status">
+          <span>Заявка закрыта. Машину по ней удалил менеджер.</span>
+        </div>
+      )}
       {r.status === "REJECTED" && (
         <div className="banner warn" role="status">
           <span>Заявка отклонена менеджером.</span>

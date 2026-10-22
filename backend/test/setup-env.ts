@@ -29,6 +29,7 @@ const HIGH = '100000';
 process.env.RATE_LIMIT_MAX = HIGH;
 process.env.RATE_LIMIT_LOGIN_ACCOUNT_MAX = HIGH;
 process.env.RATE_LIMIT_LOGIN_IP_MAX = HIGH;
+process.env.RATE_LIMIT_VIN_CHECK_MAX = HIGH;
 // По умолчанию лимиты считаются в памяти; Redis подключают только его собственные тесты
 process.env.REDIS_URL = '';
 // Длительность голосовых проверяется настоящим ffprobe из devDependencies (системный не нужен)

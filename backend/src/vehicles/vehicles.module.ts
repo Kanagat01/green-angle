@@ -3,13 +3,18 @@ import { MessagesModule } from '../messages/messages.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { AdminVehiclesController } from './admin-vehicles.controller.js';
+import { PublicVehiclesController } from './public-vehicles.controller.js';
 import { VehiclesAdminService } from './vehicles-admin.service.js';
 import { VehiclesController } from './vehicles.controller.js';
 import { VehiclesService } from './vehicles.service.js';
 
 @Module({
   imports: [StorageModule, MessagesModule, NotificationsModule],
-  controllers: [VehiclesController, AdminVehiclesController],
+  controllers: [
+    VehiclesController,
+    AdminVehiclesController,
+    PublicVehiclesController,
+  ],
   providers: [VehiclesService, VehiclesAdminService],
   exports: [VehiclesService],
 })

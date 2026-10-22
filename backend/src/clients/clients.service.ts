@@ -15,7 +15,13 @@ import { ListClientsQueryDto } from './dto/list-clients-query.dto.js';
 import { UpdateClientDto } from './dto/update-client.dto.js';
 
 const countInclude = {
-  _count: { select: { users: true, vehicles: true, requests: true } },
+  _count: {
+    select: {
+      users: true,
+      vehicles: { where: { deletedAt: null } },
+      requests: true,
+    },
+  },
 } satisfies Prisma.ClientInclude;
 
 const detailInclude = {

@@ -70,6 +70,12 @@ export function startRealtime(client: QueryClient): () => void {
   s.on("request.updated", (e: RequestUpdated) => invalidateRequest(client, e.requestId));
   s.on("message.created", (e: MessageCreated) => invalidateRequest(client, e.message.requestId));
   s.on("vehicle.status_changed", (e: VehicleChanged) => invalidateVehicle(client, e.vehicleId));
+  // Удалённая машина пропадает из списков, а заявка теряет на неё ссылку
+  s.on("vehicle.deleted", (e: VehicleChanged) => {
+    invalidateVehicle(client, e.vehicleId);
+    void client.invalidateQueries({ queryKey: ["requests"] });
+    void client.invalidateQueries({ queryKey: ["request"] });
+  });
 
   return () => {
     clearTimeout(retry);

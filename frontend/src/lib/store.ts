@@ -11,7 +11,8 @@ export type ModalState =
   | { kind: "register"; type: "COMPANY" | "PERSON" }
   | { kind: "checkMail"; email: string }
   | { kind: "newReq" }
-  | { kind: "addCar" };
+  | { kind: "addCar" }
+  | { kind: "delCar"; carId: string; title: string };
 
 /** Только состояние интерфейса; данные сервера живут в кэше TanStack Query. */
 export type AppState = {
@@ -23,7 +24,7 @@ export type AppState = {
   ownerFilter: OwnerFilter;
   vinQ: string;
   reqFilter: ReqFilter;
-  lp: { step: number; vin: string; checked: boolean };
+  lp: { step: number };
   modal: ModalState | null;
   toast: { text: string; id: number } | null;
 };
@@ -36,7 +37,7 @@ const initial: AppState = {
   ownerFilter: "all",
   vinQ: "",
   reqFilter: "waiting",
-  lp: { step: 9, vin: "", checked: false },
+  lp: { step: 9 },
   modal: null,
   toast: null,
 };

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth-user.js';
 import type { Attachment, Prisma } from '../generated/prisma/client.js';
@@ -43,6 +44,8 @@ export interface AttachmentView {
 
 @Injectable()
 export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -135,6 +138,22 @@ export class AttachmentsService {
       },
     );
     return attachment;
+  }
+
+  /**
+   * Удаляет объекты из хранилища (после того, как строки вложений уже удалены из БД).
+   * Сбой одного объекта не останавливает остальные: лишний файл в хранилище безопаснее строки без файла.
+   */
+  async deleteObjects(keys: string[]): Promise<void> {
+    await Promise.all(
+      keys.map((key) =>
+        this.storage.delete(key).catch((err: unknown) => {
+          this.logger.warn(
+            `Failed to delete object ${key}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }),
+      ),
+    );
   }
 
   /** Представление вложения для API: метаданные + свежая ссылка на скачивание. */

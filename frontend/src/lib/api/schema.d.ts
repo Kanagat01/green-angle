@@ -286,7 +286,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["AdminVehiclesController_remove"];
         options?: never;
         head?: never;
         patch: operations["AdminVehiclesController_update"];
@@ -318,6 +318,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["AdminVehiclesController_addAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/vehicle-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PublicVehiclesController_status"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -903,6 +919,25 @@ export interface components {
             attachments?: components["schemas"]["AddStepAttachmentDto"][];
             /** @description Комментарий для клиента: уходит в диалог по заявке сообщением менеджера вместе с вложениями; если у машины нет заявки — игнорируется */
             comment?: string;
+        };
+        PublicVehicleStatusDto: {
+            /** @example Geely Monjaro, 2024 */
+            title: string;
+            currentStep: number;
+            /** @example Прибыла на СВХ, ожидает тамож. оформление */
+            currentStepTitle: string;
+            /** @example 13 */
+            totalSteps: number;
+            /**
+             * @description currentStep / totalSteps
+             * @example 0.69
+             */
+            progress: number;
+            /**
+             * Format: date-time
+             * @description Последнее обновление
+             */
+            updatedAt: string;
         };
         MessageAuthorDto: {
             id: string;
@@ -1737,6 +1772,26 @@ export interface operations {
             };
         };
     };
+    AdminVehiclesController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Машина удалена: пропадает у владельца вместе с вложениями шагов, VIN освобождается */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AdminVehiclesController_update: {
         parameters: {
             query?: never;
@@ -1817,6 +1872,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StepAttachmentDto"];
                 };
+            };
+        };
+    };
+    PublicVehiclesController_status: {
+        parameters: {
+            query: {
+                /** @description VIN из 17 символов: латинские буквы и цифры */
+                vin: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicVehicleStatusDto"];
+                };
+            };
+            /** @description Машины с таким VIN нет */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Слишком много проверок с одного IP */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

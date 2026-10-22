@@ -64,6 +64,23 @@ describe('OpenAPI document (e2e)', () => {
     );
   });
 
+  it('describes the vehicle deletion and the public VIN check', () => {
+    expect(doc.paths['/api/v1/admin/vehicles/{id}']?.delete).toBeDefined();
+    const check = doc.paths['/api/v1/public/vehicle-status']?.get;
+    expect(check).toBeDefined();
+    expect(Object.keys(check.responses as Record<string, unknown>)).toEqual(
+      expect.arrayContaining(['200', '404', '429']),
+    );
+    expect(props('PublicVehicleStatusDto')).toEqual([
+      'title',
+      'currentStep',
+      'currentStepTitle',
+      'totalSteps',
+      'progress',
+      'updatedAt',
+    ]);
+  });
+
   it('describes the push subscription endpoints', () => {
     expect(doc.paths['/api/v1/me/push/public-key']?.get).toBeDefined();
     expect(doc.paths['/api/v1/me/push-subscriptions']?.post).toBeDefined();

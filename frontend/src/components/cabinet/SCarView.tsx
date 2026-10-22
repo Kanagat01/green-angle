@@ -4,7 +4,7 @@ import { LoadError, Loading } from "@/components/ui/QueryState";
 import { useRequest, useVehicle } from "@/lib/api/queries";
 import { dateFull } from "@/lib/format";
 import { NavLink } from "@/lib/nav";
-import { toast } from "@/lib/store";
+import { openModal } from "@/lib/store";
 import { CarHead } from "./CarHead";
 import { StatusForm } from "./StatusForm";
 import { Timeline } from "./Timeline";
@@ -49,7 +49,7 @@ export function SCarView({ id }: { id: string }) {
               <span className="val">{dateFull(c.createdAt)}</span>
             </div>
             {c.requestId && <RequestLink requestId={c.requestId} owner={c.client.name} />}
-            <button type="button" className="row" style={{ color: "var(--danger)" }} onClick={() => toast("Удаление машины пока недоступно.")}>
+            <button type="button" className="row" style={{ color: "var(--danger)" }} onClick={() => openModal({ kind: "delCar", carId: c.id, title: c.title })}>
               <div className="main">Удалить машину</div>
             </button>
           </section>

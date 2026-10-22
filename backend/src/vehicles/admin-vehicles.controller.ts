@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -15,6 +16,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -71,6 +73,16 @@ export class AdminVehiclesController {
     @Body() dto: UpdateVehicleDto,
   ) {
     return this.admin.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description:
+      'Машина удалена: пропадает у владельца вместе с вложениями шагов, VIN освобождается',
+  })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.remove(id);
   }
 
   @Post(':id/status')
