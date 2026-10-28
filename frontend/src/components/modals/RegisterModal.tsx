@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Field, fieldValue, useForm } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
-import { ApiError, api } from "@/lib/api/client";
+import { ApiError, api, type Schemas } from "@/lib/api/client";
 import { openModal, toast } from "@/lib/store";
 
 type Kind = "COMPANY" | "PERSON";
@@ -34,7 +34,7 @@ export function RegisterModal({ type: initialType }: { type: Kind }) {
 
     setBusy(true);
     try {
-      await api("/auth/register", {
+      const result = await api<Schemas["AcceptedDto"]>("/auth/register", {
         method: "POST",
         anonymous: true,
         body: {
@@ -47,7 +47,13 @@ export function RegisterModal({ type: initialType }: { type: Kind }) {
           consent: true,
         },
       });
-      openModal({ kind: "checkMail", email });
+      if (result.status === "registered") {
+        // Подтверждение почты выключено на сервере: кабинет уже открыт
+        openModal({ kind: "login", staff: false });
+        toast("Кабинет создан. Войдите по своей почте и паролю.");
+      } else {
+        openModal({ kind: "checkMail", email });
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         toast("Слишком много попыток. Подождите минуту и попробуйте снова.");

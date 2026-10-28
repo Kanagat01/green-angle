@@ -104,6 +104,11 @@ export const envSchema = z
     ),
     /** Срок действия ссылки подтверждения email, часы */
     EMAIL_VERIFICATION_TTL_HOURS: positiveInt(24),
+    /**
+     * Требовать подтверждение почты после регистрации. Выключено: аккаунт сразу открыт для входа,
+     * письмо не отправляется (нужно, пока на сервере нет рабочей почты).
+     */
+    EMAIL_VERIFICATION_REQUIRED: boolFlag.default(false),
 
     /**
      * Push-уведомления (Web Push) о сообщениях в диалоге. Ключи VAPID: `pnpm exec web-push

@@ -611,10 +611,11 @@ export interface components {
         };
         AcceptedDto: {
             /**
-             * @description Ответ одинаков, существует ли такой адрес: наличие аккаунтов не раскрывается
+             * @description accepted — на почту отправлена ссылка подтверждения; registered — подтверждение выключено (EMAIL_VERIFICATION_REQUIRED), можно сразу входить. Ответ одинаков, существует ли такой адрес: наличие аккаунтов не раскрывается
              * @example accepted
+             * @enum {string}
              */
-            status: string;
+            status: "accepted" | "registered";
         };
         VerifyEmailDto: {
             /** @description Токен из ссылки в письме */

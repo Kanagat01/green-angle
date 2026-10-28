@@ -41,6 +41,8 @@ process.env.FFPROBE_PATH = (
 // Тесты никогда не отправляют настоящую почту, даже если в локальном .env настроен SMTP:
 // письма остаются в MailService.outbox
 process.env.SMTP_HOST = '';
+// По умолчанию в проекте подтверждение почты выключено; почти все тесты проверяют включённый режим
+process.env.EMAIL_VERIFICATION_REQUIRED = 'true';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASS = '';
 process.env.APP_URL = 'http://localhost:3000';

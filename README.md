@@ -131,6 +131,7 @@ STORAGE_DRIVER=s3 pnpm test:e2e         # то же на драйвере S3 (н
 | `MAIL_FROM` | `Green Angle <noreply@localhost>` | Отправитель писем |
 | `APP_URL` | `http://localhost:3000` в разработке | Адрес фронтенда для ссылок в письмах. **Обязателен в production** |
 | `EMAIL_VERIFICATION_TTL_HOURS` | `24` | Срок действия ссылки подтверждения |
+| `EMAIL_VERIFICATION_REQUIRED` | `false` | `true` — после регистрации нужно подтвердить почту; `false` — аккаунт сразу открыт, письмо не отправляется |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | пусто | Ключи Web Push (`pnpm exec web-push generate-vapid-keys` в `backend/`) и `mailto:адрес` или https-адрес сайта. Задаются все три или ни одного. **Обязательны в production** |
 | `PUSH_FALLBACK_MINUTES` | `60` | Через сколько минут сообщение клиента без ответа повторно уходит всем сотрудникам |
 | `REDIS_URL` | пусто | `redis://host:6379`. Общие счётчики rate limit между экземплярами API; пусто — счётчики в памяти процесса. **Обязателен в production** |

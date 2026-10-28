@@ -105,11 +105,12 @@ export class ResendVerificationDto {
 
 export class AcceptedDto {
   @ApiProperty({
+    enum: ['accepted', 'registered'],
     example: 'accepted',
     description:
-      'Ответ одинаков, существует ли такой адрес: наличие аккаунтов не раскрывается',
+      'accepted — на почту отправлена ссылка подтверждения; registered — подтверждение выключено (EMAIL_VERIFICATION_REQUIRED), можно сразу входить. Ответ одинаков, существует ли такой адрес: наличие аккаунтов не раскрывается',
   })
-  status: 'accepted';
+  status: 'accepted' | 'registered';
 }
 
 export class VerifiedDto {

@@ -157,6 +157,7 @@ describe('validateEnv', () => {
         SMTP_PORT: 587,
         MAIL_FROM: 'Green Angle <noreply@localhost>',
         EMAIL_VERIFICATION_TTL_HOURS: 24,
+        EMAIL_VERIFICATION_REQUIRED: false,
       });
       expect(env.SMTP_HOST).toBeUndefined();
       expect(env.SMTP_SECURE).toBeUndefined();

@@ -31,7 +31,10 @@ export class AuthService {
     if (!user || !valid || !user.isActive)
       throw new UnauthorizedException('Invalid credentials');
     // Про неподтверждённую почту говорим только тому, кто знает пароль
-    if (!user.emailVerifiedAt) {
+    if (
+      !user.emailVerifiedAt &&
+      this.config.getOrThrow<boolean>('EMAIL_VERIFICATION_REQUIRED')
+    ) {
       throw new ForbiddenException({
         statusCode: 403,
         message: 'Email is not verified',

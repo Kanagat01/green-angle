@@ -18,6 +18,7 @@ export class RegistrationService {
   private readonly ttlMs: number;
   private readonly appUrl: string;
   private readonly ttlHours: number;
+  private readonly verificationRequired: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -27,11 +28,20 @@ export class RegistrationService {
     this.ttlHours = config.getOrThrow<number>('EMAIL_VERIFICATION_TTL_HOURS');
     this.ttlMs = this.ttlHours * 60 * 60 * 1000;
     this.appUrl = config.get<string>('APP_URL') ?? 'http://localhost:3000';
+    this.verificationRequired = config.getOrThrow<boolean>(
+      'EMAIL_VERIFICATION_REQUIRED',
+    );
+  }
+
+  /** Нужно ли подтверждение почты (EMAIL_VERIFICATION_REQUIRED). */
+  get requiresVerification(): boolean {
+    return this.verificationRequired;
   }
 
   /**
-   * Создаёт клиента и пользователя и отправляет письмо. Занятый адрес не раскрывается: ответ
-   * тот же, а хеш пароля считается до проверки, чтобы по времени ответа адрес тоже не угадывался.
+   * Создаёт клиента и пользователя; при включённом подтверждении отправляет письмо, иначе
+   * аккаунт сразу открыт. Занятый адрес не раскрывается: ответ тот же, а хеш пароля считается
+   * до проверки, чтобы по времени ответа адрес тоже не угадывался.
    */
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await hash(dto.password);
@@ -64,15 +74,18 @@ export class RegistrationService {
             passwordHash,
             role: isCompany ? Role.BROKER : Role.INDIVIDUAL,
             clientId: client.id,
+            emailVerifiedAt: this.verificationRequired ? null : new Date(),
           },
         });
-        await tx.emailToken.create({
-          data: {
-            userId: user.id,
-            tokenHash: hashToken(token),
-            expiresAt: new Date(Date.now() + this.ttlMs),
-          },
-        });
+        if (this.verificationRequired) {
+          await tx.emailToken.create({
+            data: {
+              userId: user.id,
+              tokenHash: hashToken(token),
+              expiresAt: new Date(Date.now() + this.ttlMs),
+            },
+          });
+        }
       });
     } catch (err) {
       // Два одинаковых запроса одновременно: второй упёрся в уникальный email — это не ошибка
@@ -80,7 +93,9 @@ export class RegistrationService {
       throw err;
     }
 
-    await this.sendVerification(dto.email, dto.name, token);
+    if (this.verificationRequired) {
+      await this.sendVerification(dto.email, dto.name, token);
+    }
   }
 
   /** Подтверждает почту по токену из письма. Повторный переход по той же ссылке не ошибка. */

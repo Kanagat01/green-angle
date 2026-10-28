@@ -53,7 +53,11 @@ export class AuthController {
   @ApiAcceptedResponse({ type: AcceptedDto })
   async register(@Body() dto: RegisterDto): Promise<AcceptedDto> {
     await this.registration.register(dto);
-    return { status: 'accepted' };
+    return {
+      status: this.registration.requiresVerification
+        ? 'accepted'
+        : 'registered',
+    };
   }
 
   @Post('verify-email')
