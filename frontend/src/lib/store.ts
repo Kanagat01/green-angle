@@ -93,11 +93,11 @@ export function restoreModalFocus() {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let toastSeq = 0;
-export function toast(text: string) {
+export function toast(text: string, ms = 3200) {
   const id = ++toastSeq;
   set({ toast: { text, id } });
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     if (state.toast && state.toast.id === id) set({ toast: null });
-  }, 3200);
+  }, ms);
 }

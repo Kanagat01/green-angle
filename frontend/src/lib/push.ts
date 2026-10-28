@@ -74,7 +74,10 @@ export function usePush() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setState(permission === "denied" ? "denied" : "off");
-        if (permission === "denied") toast("Уведомления запрещены. Разрешите их для сайта в настройках браузера.");
+        if (permission === "denied") {
+          // Браузер помнит запрет и повторно не спрашивает: разрешить можно только вручную
+          toast("Браузер заблокировал уведомления для этого сайта. Нажмите на значок замка слева от адреса, у пункта «Уведомления» выберите «Разрешить» и повторите.", 10_000);
+        }
         return;
       }
       const reg = await navigator.serviceWorker.register("/sw.js");

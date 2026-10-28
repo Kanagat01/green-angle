@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '../generated/prisma/client.js';
 import { MessageType, Role } from '../generated/prisma/client.js';
+import { describeError } from '../common/describe-error.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PushPayload, PushSender } from './push-sender.js';
 import { SubscribePushDto } from './dto/push.dto.js';
@@ -32,6 +33,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private readonly scanEnabled: boolean;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly pending = new Set<Promise<unknown>>();
+  private scanFailing = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,13 +50,34 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (!this.scanEnabled) return;
     this.timer = setInterval(() => {
-      this.track(this.escalate());
+      this.track(this.scan());
     }, ESCALATION_SCAN_MS);
     this.timer.unref();
   }
 
   onModuleDestroy() {
     clearInterval(this.timer);
+  }
+
+  /**
+   * Плановая проверка. Пока она падает (например, нет связи с базой), в лог пишется один раз
+   * причина, а не по строке в минуту; когда связь вернулась — одна строка об этом.
+   */
+  private async scan(): Promise<void> {
+    try {
+      await this.escalate();
+      if (this.scanFailing) {
+        this.scanFailing = false;
+        this.logger.log('Escalation scan works again');
+      }
+    } catch (err) {
+      if (!this.scanFailing) {
+        this.logger.error(
+          `Escalation scan failed (repeats are not logged until it recovers): ${describeError(err)}`,
+        );
+      }
+      this.scanFailing = true;
+    }
   }
 
   /** Публичный ключ для подписки в браузере; `enabled: false` — на сервере push не настроен. */
@@ -198,7 +221,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (err) {
       this.logger.error(
-        `Push for message ${messageId} failed: ${err instanceof Error ? err.message : String(err)}`,
+        `Push for message ${messageId} failed: ${describeError(err)}`,
       );
     }
   }
@@ -239,9 +262,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private track(promise: Promise<unknown>): void {
     const tracked = promise
       .catch((err: unknown) =>
-        this.logger.error(
-          `Background push failed: ${err instanceof Error ? err.message : String(err)}`,
-        ),
+        this.logger.error(`Background push failed: ${describeError(err)}`),
       )
       .finally(() => this.pending.delete(tracked));
     this.pending.add(tracked);
